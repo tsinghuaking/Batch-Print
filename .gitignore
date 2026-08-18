@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# 运行时产物
+uploads/*
+!uploads/.gitkeep
+server.log
+
+# PyInstaller 构建产物
+dist/
+build/
+*.spec
+
+# SumatraPDF 二进制不进 git（随 release 分发，或自行放入 bin/）
+bin/
+
+# 编辑器
+.vscode/
+.idea/
