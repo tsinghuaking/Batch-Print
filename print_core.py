@@ -13,15 +13,13 @@ import uuid
 import sys
 
 if getattr(sys, "frozen", False):
-    # PyInstaller 打包后：BASE 为只读资源目录（bin/、templates/），
-    # APP_DIR 为 exe 所在目录（可写、持久），上传文件放这里。
-    BASE = sys._MEIPASS
+    # 打包后：APP_DIR 为 exe 所在目录
     APP_DIR = os.path.dirname(sys.executable)
 else:
-    BASE = os.path.dirname(os.path.abspath(__file__))
-    APP_DIR = BASE
+    APP_DIR = os.path.dirname(os.path.abspath(__file__))
 
-BIN = os.path.join(BASE, "bin")
+# SumatraPDF 引擎放在 exe 同目录的 bin/ 下（外置分发，避免 exe 体积过大）
+BIN = os.path.join(APP_DIR, "bin")
 SUMATRA = os.path.join(BIN, "SumatraPDF.exe")
 UPLOADS = os.path.join(APP_DIR, "uploads")
 
