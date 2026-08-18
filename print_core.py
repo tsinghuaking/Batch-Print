@@ -9,6 +9,7 @@ import os
 import re
 import json
 import subprocess
+import threading
 import uuid
 import sys
 
@@ -36,6 +37,11 @@ SOFFICE_CANDIDATES = [
 ]
 
 OFFICE_EXT = {".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx"}
+
+# LibreOffice 转换全局锁：soffice 同一用户配置目录不能并发跑多个实例，
+# 否则第二个实例会等锁甚至失败。上传时多文件并行请求页数会同时触发转换，
+# 必须串行化（ThreadingHTTPServer 每个请求一个线程）。
+_OFFICE_LOCK = threading.Lock()
 
 
 def ensure_uploads():
@@ -142,7 +148,9 @@ def to_pdf(src_path, ext):
     # LibreOffice 转换是阻塞的；加 --norestore 避免弹恢复窗
     cmd = [soffice, "--headless", "--norestore", "--convert-to", "pdf",
            "--outdir", outdir, src_path]
-    r = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+    with _OFFICE_LOCK:
+        r = subprocess.run(cmd, capture_output=True, text=True,
+                           errors="replace", timeout=180)
     if r.returncode != 0:
         raise RuntimeError(f"LibreOffice 转换失败: {r.stderr[-500:]}")
     # 输出文件名 = 原 basename + .pdf
@@ -151,6 +159,24 @@ def to_pdf(src_path, ext):
     if not os.path.exists(pdf):
         raise RuntimeError("转换完成但未找到输出 PDF: " + pdf)
     return pdf
+
+
+def get_page_count(src_path, ext):
+    """返回文件总页数。PDF 用 pypdf 快速直读；Office 转 PDF 再统计。"""
+    if ext == ".pdf":
+        try:
+            from pypdf import PdfReader
+            return len(PdfReader(src_path).pages)
+        except Exception as e:
+            raise RuntimeError(f"PDF 页数读取失败: {e}")
+    if ext in OFFICE_EXT:
+        pdf = to_pdf(src_path, ext)  # 转换副产物，缓存由 OS 文件系统承担
+        try:
+            from pypdf import PdfReader
+            return len(PdfReader(pdf).pages)
+        except Exception as e:
+            raise RuntimeError(f"页数读取失败: {e}")
+    raise ValueError(f"不支持的格式: {ext}")
 
 
 def build_settings(duplex, copies, color, pages):
@@ -185,18 +211,30 @@ def build_settings(duplex, copies, color, pages):
     return ",".join(parts)
 
 
-def print_pdf(pdf_path, printer, settings):
-    """调用 SumatraPDF 静默打印，返回 (ok, msg)。"""
+def print_pdf(pdf_path, printer, settings, timeout=180):
+    """
+    调用 SumatraPDF 静默打印，返回 (ok, msg)。
+
+    timeout: 子进程等待秒数。默认 180 秒。
+    部分 PCL/GDI 打印机在双面/多页模式下驱动层处理较慢，60 秒会误超时。
+    """
     cmd = [SUMATRA, "-silent", "-print-to", printer,
            "-print-settings", settings, pdf_path]
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+        r = subprocess.run(cmd, capture_output=True, text=True,
+                           errors="replace", timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return False, (f"打印超时（{timeout}s）；某些 PCL 打印机处理双面/多页较慢，"
+                       f"可点「重新打印失败的文件」再试，或把任务拆小")
     except Exception as e:
-        return False, f"调用失败或超时: {e}"
+        return False, f"调用失败: {e}"
     # SumatraPDF 打印成功通常返回 0；虚拟 PDF 打印机可能弹窗阻塞，这里只看退出码
     if r.returncode == 0:
         return True, "已发送打印任务"
-    return False, f"退出码 {r.returncode}；{r.stderr[-300:] or r.stdout[-300:]}"
+    # 输出详细原因给前端日志（驱动错误/SumatraPDF 报错）
+    err = (r.stderr or r.stdout or "").strip().splitlines()[-3:]
+    return False, (f"退出码 {r.returncode}\n  cmd: {' '.join(cmd)}\n  "
+                   + "\n  ".join(err) or "无输出")
 
 
 if __name__ == "__main__":

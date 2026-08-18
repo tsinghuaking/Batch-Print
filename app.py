@@ -10,6 +10,7 @@ import uuid
 import base64
 import socket
 import threading
+import time
 import webbrowser
 import urllib.parse
 
@@ -50,6 +51,20 @@ def safe_name(name):
     base = os.path.basename(name)
     base = "".join(c if (c.isalnum() or c in "._- ") else "_" for c in base)
     return base.strip() or "file"
+
+
+# 打印机列表缓存：Get-Printer 枚举要跑 PowerShell（约 1.4 秒），
+# 之前 /print_one 每个文件都重新枚举一遍，批量打印时白白多等好几秒。
+_PRINTER_CACHE = {"t": 0.0, "set": set()}
+_PRINTER_CACHE_TTL = 120  # 秒
+
+
+def printers_cached():
+    now = time.time()
+    if now - _PRINTER_CACHE["t"] > _PRINTER_CACHE_TTL or not _PRINTER_CACHE["set"]:
+        _PRINTER_CACHE["set"] = set(print_core.list_printers())
+        _PRINTER_CACHE["t"] = now
+    return _PRINTER_CACHE["set"]
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -94,18 +109,58 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(b)
 
+    def _logo(self):
+        # 页面顶部 LOGO：assets/logo.png（96px 小图）
+        try:
+            with open(os.path.join(ASSETS, "logo.png"), "rb") as f:
+                b = f.read()
+        except Exception:
+            self.send_response(404)
+            self.end_headers()
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "image/png")
+        self.send_header("Content-Length", str(len(b)))
+        self.end_headers()
+        self.wfile.write(b)
+
     def do_GET(self):
         p = urllib.parse.urlparse(self.path).path
         if p in ("/", "/index.html"):
             self._static()
         elif p == "/favicon.ico":
             self._favicon()
+        elif p == "/logo.png":
+            self._logo()
         elif p == "/printers":
             self._send_json(print_core.list_printers())
         elif p == "/config":
             self._send_json({"default_printer": load_config().get("default_printer", "")})
+        elif p == "/pagecount":
+            self._get_pagecount(urllib.parse.urlparse(self.path).query)
         else:
             self._send_json({"error": "not found"}, 404)
+
+    def _get_pagecount(self, query):
+        qs = urllib.parse.parse_qs(query or "")
+        fid = (qs.get("id") or [""])[0]
+        if not fid:
+            self._send_json({"pages": None, "msg": "缺少 id"}, 400)
+            return
+        # 安全校验：仅匹配 UPLOADS 目录下的现有文件
+        if "/" in fid or "\\" in fid or ".." in fid:
+            self._send_json({"pages": None, "msg": "非法 id"}, 400)
+            return
+        path = os.path.join(print_core.UPLOADS, fid)
+        if not os.path.exists(path):
+            self._send_json({"pages": None, "msg": "文件不存在"}, 404)
+            return
+        ext = os.path.splitext(path)[1].lower()
+        try:
+            n = print_core.get_page_count(path, ext)
+            self._send_json({"pages": n})
+        except Exception as e:
+            self._send_json({"pages": None, "msg": str(e)})
 
     def do_POST(self):
         p = urllib.parse.urlparse(self.path).path
@@ -123,10 +178,35 @@ class Handler(BaseHTTPRequestHandler):
             self._post_default(data)
         elif p == "/upload":
             self._post_upload(data)
+        elif p == "/prepare":
+            self._post_prepare(data)
+        elif p == "/print_one":
+            self._post_print_one(data)
         elif p == "/print":
             self._post_print(data)
         else:
             self._send_json({"error": "not found"}, 404)
+
+    def _post_prepare(self, data):
+        """预转换端点：把 Word/Excel 提前转成 PDF（LibreOffice 冷启动慢，
+        前端在打印循环前批量调用，打印时就能立即出纸）。"""
+        fid = (data or {}).get("id", "")
+        if not fid or "/" in fid or "\\" in fid or ".." in fid:
+            self._send_json({"ok": False, "msg": "非法 id"}, 400)
+            return
+        path = os.path.join(print_core.UPLOADS, fid)
+        if not os.path.exists(path):
+            self._send_json({"ok": False, "msg": "文件不存在，请重新上传"}, 404)
+            return
+        ext = os.path.splitext(path)[1].lower()
+        if ext == ".pdf":
+            self._send_json({"ok": True, "cached": True})
+            return
+        try:
+            print_core.to_pdf(path, ext)
+            self._send_json({"ok": True})
+        except Exception as e:
+            self._send_json({"ok": False, "msg": str(e)})
 
     def _post_default(self, data):
         name = (data or {}).get("printer", "")
@@ -156,6 +236,40 @@ class Handler(BaseHTTPRequestHandler):
             f.write(raw)
         self._send_json({"ok": True, "id": fid, "name": safe_name(name), "ext": ext})
 
+    def _post_print_one(self, data):
+        """单文件打印端点：实时逐个调用，前端每份完成即更新状态。"""
+        printer = (data or {}).get("printer", "")
+        fid = (data or {}).get("id", "")
+        name = (data or {}).get("name", fid)
+        if not printer:
+            return self._send_json({"ok": False, "id": fid, "msg": "未选打印机"}, 400)
+        if not fid:
+            return self._send_json({"ok": False, "id": fid, "msg": "缺 id"}, 400)
+        known = printers_cached()
+        if printer not in known:
+            return self._send_json(
+                {"ok": False, "id": fid, "msg": f"打印机「{printer}」不存在，请刷新后重选"}, 400)
+        path = os.path.join(print_core.UPLOADS, fid)
+        if not os.path.exists(path):
+            return self._send_json(
+                {"ok": False, "id": fid, "name": name, "msg": "文件不存在，请重新上传"}, 404)
+        ext = os.path.splitext(path)[1].lower()
+        try:
+            pdf = print_core.to_pdf(path, ext)
+            settings = print_core.build_settings(
+                (data or {}).get("duplex", "simplex"),
+                (data or {}).get("copies", 1),
+                (data or {}).get("color", "color"),
+                (data or {}).get("pages", ""),
+            )
+            # 180s 超时：对 PCL/GDI 双面/多页更宽容
+            ok, msg = print_core.print_pdf(pdf, printer, settings, timeout=180)
+            return self._send_json(
+                {"ok": ok, "id": fid, "name": name, "msg": msg, "settings": settings})
+        except Exception as e:
+            return self._send_json(
+                {"ok": False, "id": fid, "name": name, "msg": str(e)})
+
     def _post_print(self, data):
         printer = (data or {}).get("printer", "")
         items = (data or {}).get("items", [])
@@ -165,7 +279,7 @@ class Handler(BaseHTTPRequestHandler):
         if not items:
             self._send_json({"error": "没有要打印的文件"}, 400)
             return
-        known = set(print_core.list_printers())
+        known = printers_cached()
         if printer not in known:
             self._send_json({"error": f"打印机“{printer}”不存在，请刷新后重选"}, 400)
             return

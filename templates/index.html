@@ -6,46 +6,203 @@
 <title>批量打印工具</title>
 <link rel="icon" href="/favicon.ico">
 <style>
+  :root{
+    --primary:#2563eb; --primary-dark:#1d4ed8; --primary-soft:#dbeafe;
+    --text:#111827; --soft:#6b7280; --faint:#9ca3af;
+    --bg:#f1f5f9; --card:#fff; --border:#e5e7eb; --border-soft:#eef2f7;
+    --alt:#f8fafc; --hover:#eff3fa;
+    --radius:16px; --radius-ctl:10px; --radius-pill:999px;
+  }
   * { box-sizing: border-box; }
-  body { font-family: "Microsoft YaHei", system-ui, sans-serif; margin: 0;
-         background: #f4f6f8; color: #1f2933; }
-  .wrap { max-width: 980px; margin: 0 auto; padding: 24px 18px 60px; }
-  h1 { font-size: 20px; margin: 0 0 4px; }
-  .sub { color: #6b7280; font-size: 13px; margin-bottom: 18px; }
-  .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px;
-          padding: 16px; margin-bottom: 16px; }
-  #drop { border: 2px dashed #cbd5e1; border-radius: 10px; padding: 28px;
-          text-align: center; color: #64748b; cursor: pointer; transition: .15s; }
-  #drop.hover { border-color: #2563eb; background: #eff6ff; color: #2563eb; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text",
+         "PingFang SC", "Helvetica Neue", "Microsoft YaHei", sans-serif;
+         margin: 0; background: var(--bg); color: var(--text); line-height: 1.5; }
+  .wrap { max-width: 1320px; margin: 0 auto; padding: 40px 24px 72px; }
+
+  /* 1. 顶部标题区（LOGO + 标题） */
+  .header { display: flex; align-items: center; gap: 18px; margin-bottom: 32px; }
+  .header-left { display: flex; align-items: center; gap: 18px; flex: 1; min-width: 0; }
+  .logo { width: 80px; height: 80px; border-radius: 16px; flex: none; }
+  .title-box h1 { font-size: 28px; font-weight: 700; margin: 0 0 4px; letter-spacing: .3px; }
+  .title-box .sub { color: var(--faint); font-size: 13px; margin: 0; }
+  .github-btn { display: inline-flex; align-items: center; gap: 8px;
+                height: 44px; padding: 0 18px; border-radius: 999px;
+                background: #24292f; color: #fff; text-decoration: none;
+                font-size: 13.5px; font-weight: 500; transition: background .15s;
+                flex: none; }
+  .github-btn:hover { background: #1b1f23; }
+  .github-btn svg { width: 18px; height: 18px; fill: #fff; }
+
+  /* 卡片通用（Neve 大圆角卡片） */
+  .card { background: var(--card); border: 1px solid var(--border-soft);
+          border-radius: var(--radius); padding: 26px 30px; margin-bottom: 22px;
+          box-shadow: 0 1px 3px rgba(15,23,42,.05), 0 1px 2px rgba(15,23,42,.04); }
+
+  /* 2. 文件拖拽上传框 */
+  #drop { background: var(--alt); border: 2px dashed #cbd5e1; border-radius: var(--radius);
+          padding: 48px 24px; text-align: center; color: var(--soft); cursor: pointer;
+          transition: .18s; font-size: 14px; }
+  #drop:hover { background: var(--hover); border-color: #93c5fd; }
+  #drop.hover { background: var(--primary-soft); border-color: var(--primary);
+                color: var(--primary); }
   #file { display: none; }
-  .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+
+  /* 3. 打印机 / 全局设置面板（两行控件左对齐） */
+  .row { display: flex; flex-wrap: wrap; gap: 12px 14px; align-items: center; }
+  .row + .row { margin-top: 16px; }
+  .section-label { font-size: 13px; font-weight: 600; color: var(--text);
+                   width: 62px; flex: none; }
   select, input[type=number], input[type=text] {
-    padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 6px;
-    font-size: 13px; background: #fff; }
-  label { font-size: 13px; color: #374151; }
-  button { cursor: pointer; border: none; border-radius: 6px; font-size: 14px;
-           padding: 8px 16px; background: #2563eb; color: #fff; }
-  button.ghost { background: #e5e7eb; color: #374151; }
+    height: 38px; padding: 0 12px; border: 1px solid var(--border);
+    border-radius: var(--radius-ctl); font-size: 13px; background: #fff;
+    color: var(--text); transition: border-color .15s, box-shadow .15s; }
+  select { appearance: none; -webkit-appearance: none; padding-right: 34px;
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1.5l5 4.5 5-4.5' stroke='%236b7280' stroke-width='1.8' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 12px center; }
+  select:focus, input:focus { outline: none; border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(37,99,235,.14); }
+
+  /* 2.1 自定义下拉（替换原生 select 的方框弹层） */
+  .dd {
+    position: relative; display: inline-block; min-width: 140px;
+    background: #fff; border: 1px solid var(--border);
+    border-radius: var(--radius-ctl);
+    transition: border-color .15s, box-shadow .15s;
+    font-size: 13px; color: var(--text);
+  }
+  .dd:hover { border-color: var(--primary); }
+  .dd.open {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(37,99,235,.14);
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+  .dd-trigger {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    width: 100%; height: 38px; padding: 0 12px;
+    background: transparent; border: 0; border-radius: inherit;
+    font: inherit; color: var(--text); cursor: pointer; text-align: left;
+  }
+  .dd-trigger:focus { outline: none; }
+  .dd-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dd-caret {
+    width: 12px; height: 8px; flex: none; opacity: .7;
+    background: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1.5l5 4.5 5-4.5' stroke='%236b7280' stroke-width='1.8' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat center / contain;
+    transition: transform .18s;
+  }
+  .dd.open .dd-caret { transform: rotate(180deg); opacity: 1; }
+  .dd-menu {
+    position: absolute; top: 100%; left: -1px; right: -1px; z-index: 50;
+    margin: 0; padding: 6px 0; list-style: none;
+    background: #fff;
+    border: 1px solid var(--primary);
+    border-top: 1px solid var(--border-soft);
+    border-radius: 0 0 var(--radius-ctl) var(--radius-ctl);
+    max-height: 280px; overflow-y: auto;
+    box-shadow: 0 14px 32px rgba(15,23,42,.14),
+                0 4px 10px rgba(15,23,42,.06);
+  }
+  .dd:not(.open) .dd-menu { display: none; }
+  .dd-opt {
+    padding: 9px 14px; font-size: 13px; color: var(--text); cursor: pointer;
+    transition: background .1s; user-select: none;
+  }
+  .dd-opt:hover { background: var(--hover); }
+  .dd-opt.sel { color: var(--primary); background: var(--primary-soft); font-weight: 600; }
+  .dd-opt.empty { color: var(--faint); cursor: default; text-align: center; padding: 14px; }
+  .dd > select {
+    /* 必须保留「活的」select（不在 display:none 下），否则 Chrome 手动 set value
+       时 selectedIndex 不会同步更新，导致自定义下拉的 trigger label 不会变。
+       表现为：从默认项切到任意项「选不上」，得先选个别的再切才能成功。 */
+    position: absolute !important; width: 1px !important; height: 1px !important;
+    margin: -1px !important; padding: 0 !important; border: 0 !important;
+    opacity: 0 !important; pointer-events: none !important;
+    clip: rect(0 0 0 0) !important;
+  }
+  td .dd { width: 100%; min-width: 0; }  /* 表格内下拉覆盖全局 min-width:140px，跟随 td 宽 */
+  .dd[data-select-id="printer"] { min-width: 260px; }
+  button { cursor: pointer; border: none; border-radius: var(--radius-pill);
+           font-size: 13px; font-weight: 500; height: 38px; padding: 0 20px;
+           background: var(--primary); color: #fff; transition: .15s; }
+  button:hover { background: var(--primary-dark); }
+  button.ghost { background: #fff; color: var(--soft);
+                 border: 1px solid var(--border); }
+  button.ghost:hover { border-color: var(--primary); color: var(--primary);
+                       background: #fff; }
   button:disabled { opacity: .5; cursor: not-allowed; }
-  table { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 13px; }
-  th, td { border-bottom: 1px solid #eef2f7; padding: 8px 6px; text-align: left; }
-  th { color: #6b7280; font-weight: 600; }
-  td input[type=number] { width: 64px; }
-  td input[type=text] { width: 110px; }
+  label { font-size: 13px; color: var(--text); }
   .status { font-size: 12px; }
-  .ok { color: #16a34a; } .bad { color: #dc2626; } .wait { color: #9ca3af; }
+  .ok { color: #16a34a; } .bad { color: #dc2626; } .wait { color: var(--faint); }
+  .printing { color: #d97706; font-weight: 500; }
+
+  /* 4. 文件列表表格 */
+  table { width: 100%; border-collapse: collapse; margin-top: 4px; font-size: 13px;
+          table-layout: fixed; }            /* 固定列宽，避免被长内容挤断；thead 宽度决定所有列 */
+  thead th { background: var(--alt); color: var(--soft); font-weight: 600;
+             text-align: center; padding: 12px 8px;
+             border-bottom: 1px solid var(--border-soft);
+             white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  thead th:first-child { border-radius: var(--radius-ctl) 0 0 var(--radius-ctl); }
+  thead th:last-child { border-radius: 0 var(--radius-ctl) var(--radius-ctl) 0; }
+  /* tbody td 默认居中（与表头一致）。input/select/button 是 inline-block，
+     text-align:center 能让它们也水平居中。文件列单独保持左对齐，长文件名换行更自然。 */
+  tbody td { padding: 10px 8px; border-bottom: 1px solid var(--border-soft);
+             text-align: center; vertical-align: middle; }
+  tbody td.file { white-space: normal; word-break: break-all;
+                  text-align: left;
+                  overflow: hidden; text-overflow: ellipsis; } /* 文件名左对齐换行 */
+  tbody tr:nth-child(even) { background: var(--alt); }
+  tbody tr:hover { background: var(--hover); }
+  td select, td input[type=number], td input[type=text] { height: 34px; }
+  td input[type=number] { width: 76px; }
+  td input[type=text] { width: 140px; }
   .del { color: #dc2626; cursor: pointer; font-size: 12px; border: none;
-         background: none; padding: 0; }
-  #log { white-space: pre-wrap; font-size: 12px; color: #374151;
-         max-height: 220px; overflow: auto; background: #f8fafc;
-         border: 1px solid #eef2f7; border-radius: 6px; padding: 10px; }
-  .hint { font-size: 12px; color: #9ca3af; margin-top: 8px; line-height: 1.6; }
+         background: none; padding: 0; height: auto; border-radius: 4px;
+         white-space: nowrap; }       /* 「移除」按钮不换行 */
+  .del:hover { text-decoration: underline; background: none; color: #dc2626; }
+  .hint { font-size: 12px; color: var(--faint); margin-top: 12px; line-height: 1.7; }
+  td.idx { color: var(--faint); font-variant-numeric: tabular-nums; text-align: center; font-size: 12.5px; }
+  thead th.idx-h, td.idx { white-space: nowrap; }
+  thead th.nowrap-h { white-space: nowrap; }  /* 表头与列底保持一行 */
+  td.nowrap { white-space: nowrap; }  /* 通用 nowrap（如页数、状态、操作） */
+
+  /* 5. 操作按钮 & 底部提示 */
+  #printBtn { padding: 0 36px; font-size: 14.5px; font-weight: 600; }
+  #log { white-space: pre-wrap; font-size: 12px; color: var(--soft);
+         max-height: 220px; overflow: auto; background: var(--alt);
+         border: 1px solid var(--border-soft); border-radius: var(--radius-ctl);
+         padding: 12px; }
+  .warn-note { font-size: 12px; color: #64748b; background: var(--alt);
+               border: 1px solid var(--border-soft); border-radius: var(--radius-ctl);
+               padding: 10px 12px; margin-top: 14px; line-height: 1.7; }
+
+  /* 6. 页数列 & 底部版权 */
+  td .pgc { color: var(--soft); font-size: 12.5px; white-space: nowrap; }
+  td .pgc.loading { color: var(--faint); font-style: italic; }
+  td .pgc.err { color: #dc2626; }
+  .site-footer {
+    text-align: center; margin-top: 8px; padding: 18px 0 4px;
+    color: var(--soft); font-size: 12.5px; line-height: 1.9;
+    border-top: 1px solid var(--border-soft);
+  }
+  .site-footer .muted { color: var(--faint); font-size: 11.5px; }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>批量打印工具</h1>
-  <div class="sub">本地程序 · 不上传任何文件到网络 · 支持 PDF / Word / Excel</div>
+  <div class="header">
+    <div class="header-left">
+      <img src="/logo.png" alt="LOGO" class="logo">
+      <div class="title-box">
+        <h1>Batch Print 批量打印工具</h1>
+        <div class="sub">本地程序 · 不上传任何文件到网络 · 支持 PDF / Word / Excel</div>
+      </div>
+    </div>
+    <a class="github-btn" href="https://github.com/tsinghuaking/Batch-Print" target="_blank" rel="noopener" title="GitHub 仓库">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.56v-2.13c-3.2.7-3.87-1.36-3.87-1.36-.52-1.33-1.27-1.69-1.27-1.69-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.02 1.76 2.69 1.25 3.35.96.1-.75.4-1.25.72-1.54-2.55-.29-5.23-1.28-5.23-5.7 0-1.26.45-2.29 1.18-3.1-.12-.29-.51-1.46.11-3.05 0 0 .96-.31 3.15 1.18.91-.25 1.89-.38 2.86-.38.97 0 1.95.13 2.86.38 2.19-1.49 3.15-1.18 3.15-1.18.62 1.59.23 2.76.11 3.05.73.81 1.18 1.84 1.18 3.1 0 4.43-2.69 5.41-5.25 5.69.41.36.78 1.06.78 2.14v3.17c0 .31.21.68.8.56C20.21 21.38 23.5 17.08 23.5 12 23.5 5.65 18.35.5 12 .5z"/></svg>
+      <span>GitHub</span>
+    </a>
+  </div>
 
   <div class="card">
     <div id="drop">点击选择，或把文件拖到这里（可多选：PDF / Word / Excel）</div>
@@ -54,15 +211,15 @@
   </div>
 
   <div class="card">
-    <div class="row" style="margin-bottom:10px;">
-      <label>打印机：</label>
+    <div class="row">
+      <span class="section-label">打印机</span>
       <select id="printer" style="min-width:240px;"></select>
       <button class="ghost" id="refreshPrinter">刷新</button>
       <button class="ghost" id="setDefault">设为默认</button>
       <span id="printerMsg" class="status wait"></span>
     </div>
-    <div class="row" style="margin-bottom:6px;">
-      <label>全局设置：</label>
+    <div class="row">
+      <span class="section-label">全局设置</span>
       <select id="gDuplex">
         <option value="simplex">单面</option>
         <option value="duplex">双面（长边翻转）</option>
@@ -82,30 +239,42 @@
     <table id="tbl">
       <thead>
         <tr>
-          <th style="width:30%">文件</th>
-          <th>双面</th><th>份数</th><th>彩色</th>
-          <th>页码（留空=全部）</th><th>状态</th><th></th>
+          <th style="width:56px"  class="idx-h nowrap-h">序号</th>
+          <th class="file-h">文件</th>
+          <th style="width:156px" class="nowrap-h">双面</th>
+          <th style="width:80px"  class="nowrap-h">份数</th>
+          <th style="width:100px" class="nowrap-h">彩色</th>
+          <th style="width:132px" class="nowrap-h">页码（留空=全部）</th>
+          <th style="width:80px"  class="nowrap-h">页数</th>
+          <th style="width:120px" class="nowrap-h">状态</th>
+          <th style="width:76px"  class="nowrap-h"></th>
         </tr>
       </thead>
       <tbody id="tbody"></tbody>
     </table>
     <div class="hint">
       页码写法示例：<b>1-3</b>（第1到3页） · <b>1,3,5-7</b>（指定页）。
-      双面/份数/彩色为整份设置；页码可按每个文件单独填。
+      双面/份数/彩色为整份设置；页码可按每个文件单独填。Word/Excel 会在后台转 PDF 后统计页数，可能需要数秒。
     </div>
   </div>
 
   <div class="card">
     <div class="row">
       <button id="printBtn">开始打印</button>
+      <button class="ghost" id="retryBtn" disabled>重新打印失败的文件</button>
       <span id="printMsg" class="status"></span>
     </div>
-    <div id="log" style="margin-top:10px;"></div>
-    <div class="hint">
+    <div id="log" style="margin-top:14px;"></div>
+    <div class="warn-note">
       提示：虚拟打印机（Microsoft Print to PDF / WPS PDF / Adobe PDF）会弹出“另存为”窗口，
       不适合静默批量打印；请选真实打印机。Word/Excel 会先由 LibreOffice 转成 PDF 再打印。
     </div>
   </div>
+
+  <footer class="site-footer">
+    <div>© 2026 <b>Vincent</b> · 批量打印工具 · 仅供个人使用，未经授权禁止转载与商业用途</div>
+    <div class="muted">本地程序，文件不上传网络 · 引擎：SumatraPDF + LibreOffice</div>
+  </footer>
 </div>
 
 <script>
@@ -140,14 +309,23 @@ function upload(fileList) {
         .catch(e => { bad++; log(`✗ ${f.name}：上传失败 ${e}`); })
         .finally(() => {
           pending--;
-          render();
-          if (pending === 0)
+          if (pending === 0) {
+            // 上传完成后按文件名排序（中英混合，用 localeCompare zh-CN 自然顺序）
+            sortItemsByName();
+            render();
+            refreshRetryBtn();
             $("printerMsg").textContent =
               `已加入 ${added} 个${bad ? "，跳过 " + bad + " 个" : ""}`;
+          }
         });
     };
     reader.readAsDataURL(f);
   });
+}
+
+// 按文件名排序：中文用 zh-CN locale，英文按字典序，混合顺序自然
+function sortItemsByName() {
+  items.sort((a, b) => a.name.localeCompare(b.name, "zh-CN", { numeric: true }));
 }
 
 function render() {
@@ -155,22 +333,53 @@ function render() {
   items.forEach((it, i) => {
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td>${esc(it.name)}</td>
+      <td class="idx">${i + 1}</td>
+      <td class="file" title="${esc(it.name)}">${esc(it.name)}</td>
       <td><select data-i="${i}" class="d">
         <option value="simplex">单面</option>
-        <option value="duplex">双面(长边)</option>
-        <option value="duplexshort">双面(短边)</option></select></td>
+        <option value="duplex">双面（长边翻转）</option>
+        <option value="duplexshort">双面（短边翻转）</option></select></td>
       <td><input type="number" min="1" max="999" value="1" data-i="${i}" class="c"></td>
       <td><select data-i="${i}" class="col">
         <option value="color">彩色</option>
         <option value="monochrome" selected>黑白</option></select></td>
       <td><input type="text" placeholder="如 1-3" data-i="${i}" class="pg"></td>
-      <td class="st wait">待打印</td>
-      <td><button class="del" data-i="${i}">移除</button></td>`;
+      <td class="pgc nowrap loading" data-i="${i}">读取中…</td>
+      <td class="st wait nowrap">待打印</td>
+      <td class="nowrap"><button class="del" data-i="${i}">移除</button></td>`;
     tb.appendChild(tr);
+    // 拉取页数；demo 模式下用预填的 pages 跳过请求
+    if (typeof it.pages === "number") {
+      const cell = document.querySelectorAll("#tbody .pgc")[i];
+      if (cell) { cell.className = "pgc nowrap"; cell.textContent = it.pages + " 页"; }
+    } else {
+      fetchPageCount(it, i);
+    }
   });
   tb.querySelectorAll(".del").forEach(b =>
     b.onclick = () => { items.splice(+b.dataset.i, 1); render(); });
+  // 新增行的 select 转成自定义下拉
+  initAllDD();
+}
+
+function fetchPageCount(it, i) {
+  fetch(`/pagecount?id=${encodeURIComponent(it.id)}`)
+    .then(r => r.json())
+    .then(res => {
+      const cell = document.querySelectorAll("#tbody .pgc")[i];
+      if (!cell) return;
+      if (res.pages != null) {
+        cell.className = "pgc nowrap";
+        cell.textContent = res.pages + " 页";
+      } else {
+        cell.className = "pgc nowrap err";
+        cell.textContent = res.msg || "读取失败";
+      }
+    })
+    .catch(e => {
+      const cell = document.querySelectorAll("#tbody .pgc")[i];
+      if (cell) { cell.className = "pgc nowrap err"; cell.textContent = "读取失败"; }
+    });
 }
 
 function esc(s){ return (s||"").replace(/[&<>]/g, c =>
@@ -185,11 +394,13 @@ function loadPrinters() {
       sel.appendChild(o);
     });
     $("printerMsg").textContent = list.length ? `共 ${list.length} 台` : "未找到打印机";
-    // 预选已保存的默认打印机
+    // 预选已保存的默认打印机（异步），完成后必须 dispatch change 让 trigger 刷新
     fetch("/config").then(r => r.json()).then(c => {
       if (c.default_printer && list.includes(c.default_printer))
         sel.value = c.default_printer;
-    }).catch(() => {});
+    }).catch(() => {}).finally(() => {
+      sel.dispatchEvent(new Event("change", { bubbles: true }));
+    });
   }).catch(e => $("printerMsg").textContent = "读取失败：" + e);
 }
 $("refreshPrinter").onclick = loadPrinters;
@@ -209,56 +420,280 @@ $("setDefault").onclick = () => {
 
 $("applyAll").onclick = () => {
   const d = $("gDuplex").value, c = $("gCopies").value, col = $("gColor").value;
-  document.querySelectorAll("#tbody .d").forEach(s => s.value = d);
-  document.querySelectorAll("#tbody .c").forEach(s => s.value = c);
-  document.querySelectorAll("#tbody .col").forEach(s => s.value = col);
+  document.querySelectorAll("#tbody .d").forEach(s => { s.value = d; s.dispatchEvent(new Event("change", { bubbles: true })); });
+  document.querySelectorAll("#tbody .c").forEach(s => { s.value = c; s.dispatchEvent(new Event("change", { bubbles: true })); });
+  document.querySelectorAll("#tbody .col").forEach(s => { s.value = col; s.dispatchEvent(new Event("change", { bubbles: true })); });
 };
 
 function log(s){ const el = $("log"); el.textContent += s + "\n"; el.scrollTop = el.scrollHeight; }
 
-$("printBtn").onclick = () => {
-  if (!items.length) { $("printMsg").textContent = "请先上传文件"; return; }
+$("printBtn").onclick = () => startPrint(items.map((_, i) => i));   // 全部
+$("retryBtn").onclick = () => startPrint(
+  items.map((_, i) => i).filter(i => getRowState(i) === "failed")
+);                                                                       // 仅失败的
+
+// 读出第 i 行的打印参数（双面/份数/彩色/页码）
+function rowSettings(i) {
+  return {
+    duplex:   document.querySelectorAll("#tbody .d")[i].value,
+    copies:   document.querySelectorAll("#tbody .c")[i].value,
+    color:    document.querySelectorAll("#tbody .col")[i].value,
+    pages:    document.querySelectorAll("#tbody .pg")[i].value,
+  };
+}
+
+// 读出第 i 行当前状态：wait / printing / ok / bad / empty
+function getRowState(i) {
+  const st = document.querySelectorAll("#tbody .st")[i];
+  if (!st) return "empty";
+  if (st.classList.contains("printing")) return "printing";
+  if (st.classList.contains("ok"))        return "ok";
+  if (st.classList.contains("bad"))       return "failed";
+  return "wait";
+}
+
+function setRowState(i, kind, text) {
+  const st = document.querySelectorAll("#tbody .st")[i];
+  if (!st) return;
+  st.className = "st nowrap " + kind;
+  st.textContent = text;
+}
+
+// 扫描当前失败行数，更新「重新打印失败」按钮可用性
+function refreshRetryBtn() {
+  const failed = items.map((_, i) => i).filter(i => getRowState(i) === "failed");
+  const btn = $("retryBtn");
+  btn.disabled = !failed.length;
+  btn.textContent = failed.length
+    ? `重新打印失败的文件（${failed.length}）`
+    : "重新打印失败的文件";
+}
+
+function busy(yes, msg) {
+  $("printBtn").disabled = yes;
+  $("retryBtn").disabled = yes || !items.some((_, i) => getRowState(i) === "failed");
+  $("printMsg").textContent = msg;
+}
+
+// 串行打印：indices 是要打的行号数组；每打完一份立刻更新状态
+async function startPrint(indices) {
+  if (!indices.length) { $("printMsg").textContent = "没有要打印的文件"; return; }
   const printer = $("printer").value;
   if (!printer) { $("printMsg").textContent = "请选择打印机"; return; }
-  const payload = {
-    printer,
-    items: items.map((it, i) => ({
-      id: it.id, name: it.name,
-      duplex: document.querySelectorAll("#tbody .d")[i].value,
-      copies: document.querySelectorAll("#tbody .c")[i].value,
-      color: document.querySelectorAll("#tbody .col")[i].value,
-      pages: document.querySelectorAll("#tbody .pg")[i].value,
-    }))
-  };
-  $("printBtn").disabled = true;
-  $("printMsg").textContent = "正在打印…";
-  log("== 开始打印，目标：" + printer + " ==");
-  fetch("/print", { method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload) })
-    .then(r => r.json()).then(res => {
-      (res.results || []).forEach(r => {
-        log((r.ok ? "✓ " : "✗ ") + r.name + "：" + r.msg +
-            (r.settings ? "  [" + r.settings + "]" : ""));
-        // 把对应行的状态更新为「已完成 / 失败」
-        const idx = items.findIndex(it => it.id === r.id);
-        if (idx >= 0) {
-          const st = document.querySelectorAll("#tbody .st")[idx];
-          if (st) {
-            st.className = "st " + (r.ok ? "ok" : "bad");
-            st.textContent = r.ok ? "已完成" : "失败";
-          }
-        }
-      });
-      $("printMsg").textContent =
-        `完成：成功 ${res.ok||0} / 共 ${res.total||0}`;
-      $("printBtn").disabled = false;
-    })
-    .catch(e => { $("printMsg").textContent = "打印失败：" + e;
-                  $("printBtn").disabled = false; });
-};
+  busy(true, `正在准备（0 / ${indices.length}）…`);
+  let done = 0, ok = 0, bad = 0;
+
+  // 预转换阶段：Word/Excel 先批量转 PDF（LibreOffice 冷启动很慢，
+  // 提前转完，打印循环里打印机就能一份接一份立即出纸）
+  const officeIdx = indices.filter(i => items[i] && items[i].ext !== ".pdf");
+  for (let k = 0; k < officeIdx.length; k++) {
+    const i = officeIdx[k];
+    setRowState(i, "printing", "转换中…");
+    $("printMsg").textContent = `正在转换 Office 文件（${k + 1} / ${officeIdx.length}）…`;
+    try {
+      await fetch("/prepare", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: items[i].id }),
+      }).then(r => r.json());
+    } catch (e) { /* 转换失败留给打印阶段报具体错误 */ }
+  }
+
+  for (const i of indices) {
+    const it = items[i];
+    if (!it) continue;
+    // 切到「打印中」
+    setRowState(i, "printing", "打印中…");
+    $("printMsg").textContent = `正在打印（${done} / ${indices.length}）…`;
+    try {
+      const r = await fetch("/print_one", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: it.id, name: it.name, printer,
+          ...rowSettings(i),
+        }),
+      }).then(r => r.json());
+      if (r.ok) {
+        setRowState(i, "ok", "已完成");
+        ok++;
+        log(`✓ ${r.name}：${r.msg}${r.settings ? "  [" + r.settings + "]" : ""}`);
+      } else {
+        setRowState(i, "bad", "失败");
+        bad++;
+        log(`✗ ${r.name}：${r.msg}${r.settings ? "  [" + r.settings + "]" : ""}`);
+      }
+    } catch (e) {
+      setRowState(i, "bad", "失败");
+      bad++;
+      log(`✗ ${it.name}：请求异常 ${e}`);
+    }
+    done++;
+  }
+  $("printMsg").textContent =
+    `完成：成功 ${ok} / 失败 ${bad} / 共 ${indices.length}`;
+  busy(false);
+  refreshRetryBtn();
+}
 
 loadPrinters();
+
+/* ===== 自定义下拉组件（替代原生 select 弹层为统一圆角大框） ===== */
+function initDD(selectEl) {
+  if (!selectEl || selectEl.dataset.ddInited) return;
+  selectEl.dataset.ddInited = "1";
+  const wrap = document.createElement("div");
+  wrap.className = "dd";
+  if (selectEl.id) wrap.dataset.selectId = selectEl.id;
+  const mw = selectEl.style.minWidth;
+  if (mw) wrap.style.minWidth = mw;
+  selectEl.parentNode.insertBefore(wrap, selectEl);
+  wrap.appendChild(selectEl);
+
+  const trigger = document.createElement("button");
+  trigger.type = "button";
+  trigger.className = "dd-trigger";
+  trigger.innerHTML = '<span class="dd-label"></span><span class="dd-caret" aria-hidden="true"></span>';
+  wrap.insertBefore(trigger, selectEl);
+
+  const menu = document.createElement("ul");
+  menu.className = "dd-menu";
+  menu.setAttribute("role", "listbox");
+  wrap.appendChild(menu);
+
+  function render() {
+    const opts = [...selectEl.options];
+    menu.innerHTML = "";
+    if (!opts.length) {
+      const li = document.createElement("li");
+      li.className = "dd-opt empty";
+      li.textContent = "（无选项）";
+      menu.appendChild(li);
+    } else {
+      opts.forEach((o, idx) => {
+        const li = document.createElement("li");
+        li.className = "dd-opt";
+        li.setAttribute("role", "option");
+        li.dataset.value = o.value;
+        li.textContent = o.textContent;
+        if (o.value === selectEl.value) li.classList.add("sel");
+        li.addEventListener("click", ev => {
+          ev.stopPropagation();
+          // 不论当前值是否已相同，都强制按索引/值再设一遍并派 change，
+          // 避免「loadPrinters 异步设置 sel.value 早于 render」导致的「选不上」。
+          // 同时也是 display:none / 不可见 select 的兜底：selectedIndex 显式赋值最稳。
+          try { selectEl.selectedIndex = idx; } catch (_) {}
+          selectEl.value = o.value;
+          selectEl.dispatchEvent(new Event("change", { bubbles: true }));
+          closeAll();
+        });
+        menu.appendChild(li);
+      });
+    }
+    // 用 value 字符串匹配（不再依赖 selectEl.selectedIndex，规避 Chrome 滞后刷新）
+    const cur = opts.find(o => o.value === selectEl.value)
+             || selectEl.options[selectEl.selectedIndex];
+    trigger.querySelector(".dd-label").textContent = cur ? cur.textContent : "—";
+  }
+  trigger.addEventListener("click", ev => {
+    ev.stopPropagation();
+    if (wrap.classList.contains("open")) closeAll();
+    else { closeAll(); wrap.classList.add("open"); }
+  });
+  selectEl.addEventListener("change", render);
+  render();
+}
+function closeAll() {
+  document.querySelectorAll(".dd.open").forEach(d => d.classList.remove("open"));
+}
+function initAllDD() {
+  document.querySelectorAll("select").forEach(initDD);
+}
+document.addEventListener("click", e => { if (!e.target.closest(".dd")) closeAll(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeAll(); });
+initAllDD();
+
+/* 演示用：?demo=open 展开打印机下拉；?demo=fill 预填 3 行示例文件 */
+const _qs = new URLSearchParams(location.search);
+if (_qs.get("demo") === "open") {
+  setTimeout(() => {
+    const t = document.querySelector('.dd[data-select-id="printer"] .dd-trigger');
+    if (t) t.click();
+  }, 800);
+}
+if (_qs.get("demo") === "fill") {
+  // 预填一台虚拟默认打印机（避免 headless 截图空 trigger）
+  const _sel = $("printer");
+  if (_sel) {
+    ["WPS PDF", "Generic 36C-9SeriesPCL", "Generic / Text Only", "Microsoft Print to PDF", "Fax"]
+      .forEach(n => { const o = document.createElement("option"); o.value = n; o.textContent = n; _sel.appendChild(o); });
+    _sel.value = "WPS PDF";
+    _sel.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+  [
+    { name: "2024 年度报告.pdf", ext: ".pdf", pages: 6 },
+    { name: "产品说明书 v2.docx", ext: ".docx", pages: 12 },
+    { name: "财务季度汇总.xlsx", ext: ".xlsx", pages: 5 },
+  ].forEach(x => items.push({ id: "demo_" + Math.random().toString(36).slice(2,10), name: x.name, ext: x.ext, pages: x.pages }));
+  sortItemsByName();
+  render();
+  refreshRetryBtn();
+  // ?demo=fill_color 时同步自动点开首行的「彩色」下拉，便于截图验证
+  if (_qs.get("demo_color") === "1") {
+    setTimeout(() => {
+      const colDDs = document.querySelectorAll('#tbody select.col');
+      const wrap = colDDs[0] && colDDs[0].closest('.dd');
+      if (wrap) wrap.querySelector('.dd-trigger').click();
+    }, 200);
+  }
+}
+if (_qs.get("demo") === "duplex") {
+  // 预填 + 展开首行的「双面」下拉
+  [
+    { name: "2024 年度报告.pdf", ext: ".pdf" },
+    { name: "产品说明书 v2.docx", ext: ".docx" },
+    { name: "财务季度汇总.xlsx", ext: ".xlsx" },
+  ].forEach(x => items.push({ id: "demo_" + Math.random().toString(36).slice(2,10), name: x.name, ext: x.ext }));
+  sortItemsByName();
+  render();
+  setTimeout(() => {
+    const trg = document.querySelectorAll('#tbody .dd[data-select-id][class*="d"] .dd-trigger')[0]
+              || document.querySelectorAll('#tbody .d')[0];
+    // 上面的写法不可靠，直接根据 class 找：把所有 .dd 容器列出来选第一个对应 select 的
+    const sels = document.querySelectorAll('#tbody select.d');
+    if (sels.length) {
+      const wrap = sels[0].closest('.dd');
+      if (wrap) wrap.querySelector('.dd-trigger').click();
+    }
+  }, 800);
+}
+if (_qs.get("demo") === "pick2nd") {
+  // 预填 + 模拟用户「点开打印机下拉并直接选 Generic 36C-9SeriesPCL」
+  // 用来验证「选不上」的 bug 是否真的修好了
+  const _sel = $("printer");
+  if (_sel) {
+    ["WPS PDF", "Generic 36C-9SeriesPCL", "Generic / Text Only", "Microsoft Print to PDF"]
+      .forEach(n => { const o = document.createElement("option"); o.value = n; o.textContent = n; _sel.appendChild(o); });
+    _sel.value = "WPS PDF";
+    _sel.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+  [
+    { name: "2024 年度报告.pdf", ext: ".pdf", pages: 6 },
+    { name: "产品说明书 v2.docx", ext: ".docx", pages: 12 },
+    { name: "财务季度汇总.xlsx", ext: ".xlsx", pages: 5 },
+  ].forEach(x => items.push({ id: "demo_" + Math.random().toString(36).slice(2,10), name: x.name, ext: x.ext, pages: x.pages }));
+  sortItemsByName();
+  render();
+  refreshRetryBtn();
+  // 同步：直接在 initAllDD 之后（脚本末尾执行）模拟点开 + 选第二项
+  // 由于此处已在 initAllDD() 之后调用，wrap 已经是真实 DOM
+  const wrap = document.querySelector('.dd[data-select-id="printer"]');
+  if (wrap) {
+    const opts = wrap.querySelectorAll('.dd-opt');
+    // opts[1] = Generic 36C-9SeriesPCL
+    if (opts[1]) opts[1].click();  // 直接派 click，跳过 trigger 打开
+  }
+}
 </script>
 </body>
 </html>

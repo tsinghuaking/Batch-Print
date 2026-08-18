@@ -27,12 +27,17 @@ Key features:
 
 - 📄 **PDF / Word(.doc/.docx) / Excel(.xls/.xlsx)** — Word & Excel are first converted to PDF via local LibreOffice
 - 🖨️ **Per-file settings**: duplex (long-edge / short-edge flip), copies, color / monochrome, page range (e.g. `1-3`, `1,3,5-7`)
+- 📋 **Tabular task list**: auto-sorted by filename; columns for index, file, duplex, copies, color, page range, **real-time page count**, status
+- 🎯 **Global + per-file control**: set defaults in the "Global settings" row and click "Apply to all", or tweak any single row
 - ⚫ **Monochrome by default**: newly added files print in black & white to avoid wasting color ink
 - 💾 **Remember the default printer**: click "Set as default" and it is auto-selected next time — no more dropdown hunting
-- ✅ **Print status feedback**: each file turns green "Done" on success, or red "Failed" with details in the log
+- 🔄 **One-click reprint of failures**: failed files are marked red; the "Reprint failed files" button retries just those — no need to start over
+- ✅ **Real-time status feedback**: each file turns green "Done" on success, or red "Failed" with details in the log
+- 🎨 **Modern UI**: Neve-inspired design, Apple system font stack, custom rounded overlay dropdowns (no layout shift, no native browser dropdowns), soft palette
 - 🚀 **Single-file portable exe**: built only on the Python standard library (no third-party web framework); the
   SumatraPDF engine is **embedded in the exe** — just double-click to launch and it opens your browser automatically.
   You can also drop a `bin/` folder next to the exe to use an external engine and shrink the file.
+- ⚡ **Faster prints**: 120-second printer list cache, Office files are pre-converted to PDF (status shows "Converting...") before serial submission — no more waiting mid-print
 
 ## Preview
 
@@ -61,12 +66,16 @@ The `bin/` directory is already included in this repo — just grab it.
 ## How to use
 
 1. **Pick a printer**: choose a real printer from the top dropdown; click "Refresh" to re-scan; click "Set as default" for your usual one.
-2. **Upload files**: click the dashed box or drag files in — multiple PDF / Word / Excel at once.
+2. **Upload files**: click the dashed box or drag files in — multiple PDF / Word / Excel at once; files are auto-sorted by name and the table shows the real-time page count for each.
 3. **Set options**:
    - Same for all: choose in the "Global settings" row, then click "Apply to all";
    - Per file: edit each row in the table;
    - Page syntax: `1-3` (pages 1–3), `1,3,5-7` (specific pages), empty = all pages.
-4. **Print**: click "Print"; each file shows "Done / Failed" live in the table, with details in the log below.
+4. **Print**: click "Print":
+   - If Word/Excel files are present, they are batch-converted to PDF in the background (status shows "Converting...");
+   - Once converted, files are submitted to the printer one by one; each row updates live to "Done / Failed";
+   - If any fail, click "Reprint failed files" to retry only those.
+5. **Inspect the log**: the log panel below the page shows the full command and return for each submission; failures include SumatraPDF's error output for easier debugging.
 
 ## Run from source (developers)
 
@@ -110,6 +119,7 @@ into the exe, so distribution needs only that one file (self-contained, double-c
 - Make sure you selected a **real printer**. "Microsoft Print to PDF / WPS PDF / Adobe PDF" are virtual printers that
   pop a "Save As" dialog and don't suit silent batch printing.
 - In Windows Settings → Printers, check whether the printer is "Paused" or "Offline".
+- If a previous print job is stuck in the queue, clear the queue before retrying.
 
 **2. The "WPS PDF" printer name shows garbage characters?**
 That's a bad name WPS wrote into the system at install time (not a bug here), and it's a virtual printer — don't use it for real prints.
@@ -121,6 +131,11 @@ then gets faster. PDF-only users need no LibreOffice.
 
 **4. Where do uploaded files go?**
 They are temporarily stored in `%USERPROFILE%/.batch_print/uploads/` and are not auto-deleted after printing — clean up manually if needed.
+
+**5. The printer does nothing / is super slow?**
+- The first time you switch printers, the app enumerates all system printers (~1–2s) and caches the list for 120 seconds;
+- Word / Excel files are pre-converted in the background when you click "Print" (status shows "Converting..."), then submitted serially — no mid-print blocking;
+- For many large files, please wait for the table status to change from "Converting..." to "Printing".
 
 ## Third-party licenses
 
