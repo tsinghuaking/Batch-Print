@@ -1,7 +1,7 @@
 简体中文 | [English](README_en.md)
 
 <div align="center">
-  <img src="docs/preview.svg" alt="Batch Print Tool" width="520">
+  <img src="docs/logo.png" alt="Batch Print Tool">
 </div>
 
 <div align="center">
@@ -33,7 +33,7 @@
 ## 预览
 
 <div align="center">
-  <img src="docs/preview.svg" alt="界面预览" width="720">
+  <img src="docs/preview.png" alt="界面预览">
 </div>
 
 ## 快速开始（普通用户，推荐）

@@ -24,6 +24,7 @@ else:
     APP_DIR = RES
 
 TEMPLATES = os.path.join(RES, "templates")
+ASSETS = os.path.join(RES, "assets")
 PORT = 5001
 ALLOWED = {".pdf", ".doc", ".docx", ".xls", ".xlsx"}
 
@@ -78,10 +79,27 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(b)
 
+    def _favicon(self):
+        # 图标：exe 内置 assets/Batch Print.ico；浏览器标签页显示
+        try:
+            with open(os.path.join(ASSETS, "Batch Print.ico"), "rb") as f:
+                b = f.read()
+        except Exception:
+            self.send_response(404)
+            self.end_headers()
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "image/x-icon")
+        self.send_header("Content-Length", str(len(b)))
+        self.end_headers()
+        self.wfile.write(b)
+
     def do_GET(self):
         p = urllib.parse.urlparse(self.path).path
         if p in ("/", "/index.html"):
             self._static()
+        elif p == "/favicon.ico":
+            self._favicon()
         elif p == "/printers":
             self._send_json(print_core.list_printers())
         elif p == "/config":

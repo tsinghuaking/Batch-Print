@@ -26,8 +26,10 @@ def main():
         "--name", "批量打印工具",
         "--onefile",
         "--noconfirm",
+        "--icon", os.path.join(HERE, "assets", "Batch Print.ico"),
         "--add-data", os.path.join(HERE, "templates") + os.pathsep + "templates",
         "--add-data", os.path.join(HERE, "bin") + os.pathsep + "bin",
+        "--add-data", os.path.join(HERE, "assets") + os.pathsep + "assets",
     ])
 
 

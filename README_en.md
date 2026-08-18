@@ -1,7 +1,7 @@
 English | [简体中文](README.md)
 
 <div align="center">
-  <img src="docs/preview.svg" alt="Batch Print Tool" width="520">
+  <img src="docs/logo.png" alt="Batch Print Tool">
 </div>
 
 <div align="center">
@@ -37,7 +37,7 @@ Key features:
 ## Preview
 
 <div align="center">
-  <img src="docs/preview.svg" alt="UI preview" width="720">
+  <img src="docs/preview.png" alt="UI preview">
 </div>
 
 ## Quick Start (regular users, recommended)
