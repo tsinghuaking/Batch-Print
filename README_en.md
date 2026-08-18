@@ -1,7 +1,7 @@
 English | [简体中文](README.md)
 
 <div align="center">
-  <img src="docs/logo.png" alt="Batch Print Tool">
+  <img src="docs/logo.png" alt="Batch Print Tool" width="260">
 </div>
 
 <div align="center">
