@@ -122,21 +122,31 @@ fileInput.onchange = () => upload(fileInput.files);
 drop.ondrop = ev => upload(ev.dataTransfer.files);
 
 function upload(fileList) {
-  const fd = new FormData();
-  for (const f of fileList) fd.append("files", f);
+  if (!fileList || !fileList.length) return;
   $("printerMsg").textContent = "上传中…";
-  fetch("/upload", { method: "POST", body: fd })
-    .then(r => r.json())
-    .then(res => {
-      let added = 0, bad = 0;
-      (Array.isArray(res) ? res : [res]).forEach(r => {
-        if (r.ok) { items.push({ id: r.id, name: r.name, ext: r.ext }); added++; }
-        else { bad++; log(`✗ ${r.name}：${r.msg}`); }
-      });
-      render();
-      $("printerMsg").textContent = `已加入 ${added} 个${bad ? "，跳过 "+bad+" 个" : ""}`;
-    })
-    .catch(e => { $("printerMsg").textContent = "上传失败：" + e; });
+  let pending = fileList.length, added = 0, bad = 0;
+  [...fileList].forEach(f => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const b64 = (reader.result || "").split(",")[1] || "";
+      fetch("/upload", { method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: f.name, data: b64 }) })
+        .then(r => r.json()).then(res => {
+          if (res.ok) { items.push({ id: res.id, name: res.name, ext: res.ext }); added++; }
+          else { bad++; log(`✗ ${res.name}：${res.msg}`); }
+        })
+        .catch(e => { bad++; log(`✗ ${f.name}：上传失败 ${e}`); })
+        .finally(() => {
+          pending--;
+          render();
+          if (pending === 0)
+            $("printerMsg").textContent =
+              `已加入 ${added} 个${bad ? "，跳过 " + bad + " 个" : ""}`;
+        });
+    };
+    reader.readAsDataURL(f);
+  });
 }
 
 function render() {

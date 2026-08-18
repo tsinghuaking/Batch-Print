@@ -1,1 +1,6 @@
-flask>=3.0
+# 本工具运行无任何第三方依赖，仅使用 Python 标准库。
+# 仅需 Python 3.8+ 即可直接 `python app.py`。
+#
+# 仅打包时才需要 PyInstaller：
+#   pip install pyinstaller
+#   python build_exe.py

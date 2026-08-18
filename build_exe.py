@@ -5,11 +5,11 @@
     pip install pyinstaller
     python build_exe.py
 
-产物：dist/批量打印工具.exe （自包含，内嵌 SumatraPDF 与网页模板，双击即用）
+产物：dist/批量打印工具.exe
+- 仅用 Python 标准库，体积小（不含 Flask），约 10MB，可直接作为 GitHub Release 附件。
+- templates/ 会打进 exe；SumatraPDF 引擎（bin/）外置，需与 exe 放在同一目录。
 
 说明：
-- --onefile 会把 bin/ 与 templates/ 全部打进 exe，运行时自动解压，
-  因此分发给别人只需这一个 exe 文件。
 - 保留控制台窗口（方便看日志、关闭即停服务）。如需无控制台窗口，
   在下方 run() 列表里加上 "--windowed"。
 """
@@ -25,7 +25,6 @@ def main():
         "--name", "批量打印工具",
         "--onefile",
         "--noconfirm",
-        "--add-data", os.path.join(HERE, "bin") + os.pathsep + "bin",
         "--add-data", os.path.join(HERE, "templates") + os.pathsep + "templates",
     ])
 
