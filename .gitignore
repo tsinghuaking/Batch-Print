@@ -13,8 +13,8 @@ dist/
 build/
 *.spec
 
-# SumatraPDF 二进制不进 git（随 release 分发，或自行放入 bin/）
-bin/
+# SumatraPDF 引擎随仓库 bin/ 分发：内嵌于发布版 exe，也作为可选外置 bin/ 提供。
+# 注意 bin/ 含二进制（约 22MB），会随仓库一起 git push（GitHub 仓库单文件硬限 100MB，安全）。
 
 # 编辑器
 .vscode/
