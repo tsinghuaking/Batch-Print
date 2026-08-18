@@ -13,13 +13,18 @@ import uuid
 import sys
 
 if getattr(sys, "frozen", False):
-    # 打包后：APP_DIR 为 exe 所在目录
+    # 打包后：BASE 为只读资源目录（bin/、templates/ 已内嵌于此），
+    # APP_DIR 为 exe 所在目录（可写、持久），上传文件与配置放这里。
+    BASE = sys._MEIPASS
     APP_DIR = os.path.dirname(sys.executable)
+    # 若用户把 bin/ 放到 exe 同目录（外置分发），优先用外置版（便于单独更新引擎）
+    EXTERNAL_BIN = os.path.join(APP_DIR, "bin")
+    BIN = EXTERNAL_BIN if os.path.exists(os.path.join(EXTERNAL_BIN, "SumatraPDF.exe")) else os.path.join(BASE, "bin")
 else:
-    APP_DIR = os.path.dirname(os.path.abspath(__file__))
+    BASE = os.path.dirname(os.path.abspath(__file__))
+    APP_DIR = BASE
+    BIN = os.path.join(APP_DIR, "bin")
 
-# SumatraPDF 引擎放在 exe 同目录的 bin/ 下（外置分发，避免 exe 体积过大）
-BIN = os.path.join(APP_DIR, "bin")
 SUMATRA = os.path.join(BIN, "SumatraPDF.exe")
 UPLOADS = os.path.join(APP_DIR, "uploads")
 

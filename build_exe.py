@@ -6,8 +6,9 @@
     python build_exe.py
 
 产物：dist/批量打印工具.exe
-- 仅用 Python 标准库，体积小（不含 Flask），约 10MB，可直接作为 GitHub Release 附件。
-- templates/ 会打进 exe；SumatraPDF 引擎（bin/）外置，需与 exe 放在同一目录。
+- 仅用 Python 标准库，不含 Flask。
+- templates/ 与 bin/（SumatraPDF 引擎）全部内嵌进单个 exe，双击即用、自包含。
+- 若把 exe 同目录放了 bin/（外置 SumatraPDF），会优先用外置版，便于单独更新引擎。
 
 说明：
 - 保留控制台窗口（方便看日志、关闭即停服务）。如需无控制台窗口，
@@ -26,6 +27,7 @@ def main():
         "--onefile",
         "--noconfirm",
         "--add-data", os.path.join(HERE, "templates") + os.pathsep + "templates",
+        "--add-data", os.path.join(HERE, "bin") + os.pathsep + "bin",
     ])
 
 
