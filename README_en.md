@@ -49,7 +49,7 @@ Key features:
 ## Quick Start (regular users, recommended)
 
 1. Download **`BatchPrint.exe`** from [Releases](https://github.com/tsinghuaking/Batch-Print/releases)
-   (single file, with the local print capability built in, ~40MB).
+   (single file, with the local print capability built in, ~21MB).
 2. **Double-click** `BatchPrint.exe`:
    - It opens the print page in your system's default browser automatically (no black box);
    - If it doesn't open, visit `http://127.0.0.1:5001` manually.
@@ -119,7 +119,7 @@ into the exe, so distribution needs only that one file (self-contained, double-c
 That's a bad name WPS wrote into the system at install time (not a bug here), and it's a virtual printer — don't use it for real prints.
 
 **3. What do I need to print Word / Excel / PPT?**
-Just have Microsoft Office (Word/Excel/PowerPoint) installed locally. The tool prints through Office's built-in COM interface directly — no LibreOffice or any intermediate conversion; if Office is missing it falls back to LibreOffice to export PDF first. PDF printing relies on the system's associated PDF reader (e.g. Edge, Adobe Reader) — no extra install needed.
+Just have Microsoft Office (Word/Excel/PowerPoint) installed locally. The tool prints through Office's built-in COM interface directly — no intermediate conversion. PDF printing relies on the system's associated PDF reader (e.g. Edge, Adobe Acrobat) — no extra install needed.
 
 **4. Where do uploaded files go?**
 They are temporarily stored in `%USERPROFILE%/.batch_print/uploads/` and are not auto-deleted after printing — clean up manually if needed.

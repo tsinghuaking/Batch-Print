@@ -382,10 +382,11 @@ def _restore_printer_mode(printer, prev):
 
 
 def print_pdf_native(path, printer, settings):
-    """用系统关联程序做「右击打印」（os.startfile 的 print 动作）。
-    打印到所选打印机（临时设为系统默认），并应用所选双面/彩色/份数。
-    页码范围：用 pypdf 把指定页抽成临时 PDF 再交给阅读器打印，从而精确打第几页；
-    未指定页码则直接打印原文件。
+    """打印 PDF：用系统关联的 PDF 阅读器做「右击 -> 打印」（os.startfile 的 print 动作）。
+
+    最快最稳，就像在资源管理器里右键打印一样；打印完阅读器是否保持打开由系统/用户决定，
+    本程序不强行关闭它（避免误杀用户已打开的其它 PDF 文档）。
+    页码范围：用 pypdf 把指定页抽成临时 PDF 再交给阅读器，从而精确打第几页。
     """
     pages = (settings.get("pages") or "").strip()
     target = os.path.abspath(path)
@@ -427,8 +428,13 @@ def print_pdf_native(path, printer, settings):
                 win32print.SetDefaultPrinter(printer)
             except Exception:
                 pass
+
+        # 系统关联程序「右击打印」（os.startfile 的 print 动作）：最快最稳，
+        # 就像在资源管理器里右键打印一样。打印完阅读器是否保持打开由系统/用户决定，
+        # 本程序不强行关闭它（避免误杀用户已打开的其它 PDF 文档）。
         os.startfile(target, "print")
         msg = "已发送打印任务（本地程序打印）"
+
         if tmp:
             msg += f"  [已抽取第 {pages} 页]"
         # 阅读器异步读取临时文件，60 秒后再尝试清理
@@ -452,18 +458,27 @@ def print_pdf_native(path, printer, settings):
 
 def _word_print(src, printer, settings):
     import win32com.client
+    import pythoncom
     prev = _apply_printer_mode(
         printer, settings.get("duplex", "simplex"),
         settings.get("color", "color"), settings.get("copies", 1))
     app = None
     doc = None
     try:
+        pythoncom.CoInitialize()  # Flask 工作线程必须先初始化 COM 公寓，否则 Dispatch 报 -2147221008
+    except Exception:
+        pass
+    try:
         app = win32com.client.Dispatch("Word.Application")
         app.Visible = False
         app.DisplayAlerts = False
+        # Word 的打印机切换走 Application.ActivePrinter 属性，
+        # 直接给 Document.PrintOut 传 ActivePrinter 关键字在新版 win32com 里会报
+        # `unexpected keyword argument 'ActivePrinter'`。
+        app.ActivePrinter = printer
         doc = app.Documents.Open(os.path.abspath(src))
         copies = _int_copies(settings.get("copies", 1))
-        base = {"ActivePrinter": printer, "Copies": copies, "Background": False}
+        base = {"Copies": copies, "Background": False}
         ranges = _parse_pages(settings.get("pages", ""))
         if ranges:
             for a, b in ranges:
@@ -493,15 +508,24 @@ def _word_print(src, printer, settings):
         except Exception:
             pass
         _restore_printer_mode(printer, prev)
+        try:
+            pythoncom.CoUninitialize()
+        except Exception:
+            pass
 
 
 def _excel_print(src, printer, settings):
     import win32com.client
+    import pythoncom
     prev = _apply_printer_mode(
         printer, settings.get("duplex", "simplex"),
         settings.get("color", "color"), settings.get("copies", 1))
     app = None
     wb = None
+    try:
+        pythoncom.CoInitialize()  # Flask 工作线程必须先初始化 COM 公寓，否则 Dispatch 报 -2147221008
+    except Exception:
+        pass
     try:
         app = win32com.client.Dispatch("Excel.Application")
         app.Visible = False
@@ -531,15 +555,24 @@ def _excel_print(src, printer, settings):
         except Exception:
             pass
         _restore_printer_mode(printer, prev)
+        try:
+            pythoncom.CoUninitialize()
+        except Exception:
+            pass
 
 
 def _ppt_print(src, printer, settings):
     import win32com.client
+    import pythoncom
     prev = _apply_printer_mode(
         printer, settings.get("duplex", "simplex"),
         settings.get("color", "color"), settings.get("copies", 1))
     app = None
     pres = None
+    try:
+        pythoncom.CoInitialize()  # Flask 工作线程必须先初始化 COM 公寓，否则 Dispatch 报 -2147221008
+    except Exception:
+        pass
     try:
         app = win32com.client.Dispatch("PowerPoint.Application")
         app.Visible = False
@@ -567,6 +600,10 @@ def _ppt_print(src, printer, settings):
         except Exception:
             pass
         _restore_printer_mode(printer, prev)
+        try:
+            pythoncom.CoUninitialize()
+        except Exception:
+            pass
 
 
 def print_office_native(src, ext, printer, settings):

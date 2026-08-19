@@ -44,7 +44,7 @@
 
 ## 快速开始（普通用户，推荐）
 
-1. 到 [Releases](https://github.com/tsinghuaking/Batch-Print/releases) 下载 **`BatchPrint.exe`**（单文件，自带本机打印能力，约 40MB）。
+1. 到 [Releases](https://github.com/tsinghuaking/Batch-Print/releases) 下载 **`BatchPrint.exe`**（单文件，自带本机打印能力，约 21MB）。
 2. **双击** `BatchPrint.exe`：
    - 自动用系统默认浏览器打开打印页面（无黑框）；
    - 如未自动打开，请手动访问 `http://127.0.0.1:5001`。
@@ -112,7 +112,7 @@ python build_exe.py
 那是 WPS 安装时写入系统的坏名字（非本工具 bug），且它是虚拟打印机，建议别用来真打。
 
 **3. 打印 Word / Excel / PPT 需要装什么？**
-只需本机已安装 Microsoft Office（Word/Excel/PowerPoint）。本工具通过 Office 自带的 COM 接口直接打印，无需 LibreOffice 或任何中间转换；未装 Office 时会回退用 LibreOffice 导出 PDF 再打印。PDF 打印依赖系统已关联的 PDF 阅读器（如 Edge、Adobe Reader 等），无需额外安装。
+只需本机已安装 Microsoft Office（Word/Excel/PowerPoint）。本工具通过 Office 自带的 COM 接口直接打印，无需任何中间转换。PDF 打印依赖系统已关联的 PDF 阅读器（如 Edge、Adobe Acrobat 等），无需额外安装。
 
 **4. 上传的文件存在哪？**
 临时存放在 `%USERPROFILE%/.batch_print/uploads/`，打印完不会自动删除，可手动清理。

@@ -521,22 +521,7 @@ async function startPrint(indices) {
   busy(true, `正在准备（0 / ${indices.length}）…`);
   let done = 0, ok = 0, bad = 0;
 
-  // 预转换阶段：Word/Excel 先批量转 PDF（LibreOffice 冷启动很慢，
-  // 提前转完，打印循环里打印机就能一份接一份立即出纸）
-  const officeIdx = indices.filter(i => items[i] && items[i].ext !== ".pdf");
-  for (let k = 0; k < officeIdx.length; k++) {
-    const i = officeIdx[k];
-    setRowState(i, "printing", "转换中…");
-    $("printMsg").textContent = `正在转换 Office 文件（${k + 1} / ${officeIdx.length}）…`;
-    try {
-      await fetch("/prepare", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: items[i].id }),
-      }).then(r => r.json());
-    } catch (e) { /* 转换失败留给打印阶段报具体错误 */ }
-  }
-
+  // Office 现改为本机 COM 直打（不转 PDF），无需预转换阶段，直接进入打印循环
   for (const i of indices) {
     const it = items[i];
     if (!it) continue;

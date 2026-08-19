@@ -11,6 +11,8 @@ server.log
 # PyInstaller 构建产物
 dist/
 build/
+dist_test/
+build_test/
 *.spec
 
 # 本工具已不再依赖 SumatraPDF / LibreOffice 引擎，仓库不再分发 bin/ 目录。
