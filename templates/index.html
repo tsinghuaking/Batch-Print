@@ -25,13 +25,27 @@
   .logo { width: 80px; height: 80px; border-radius: 16px; flex: none; }
   .title-box h1 { font-size: 28px; font-weight: 700; margin: 0 0 4px; letter-spacing: .3px; }
   .title-box .sub { color: var(--faint); font-size: 13px; margin: 0; }
-  .github-btn { display: inline-flex; align-items: center; gap: 8px;
-                height: 44px; padding: 0 18px; border-radius: 999px;
-                background: #24292f; color: #fff; text-decoration: none;
-                font-size: 13.5px; font-weight: 500; transition: background .15s;
-                flex: none; }
-  .github-btn:hover { background: #1b1f23; }
-  .github-btn svg { width: 18px; height: 18px; fill: #fff; }
+  /* 头部右侧四个按钮统一尺寸（GitHub / 小红书 / 微信 / 退出程序） */
+  .hdr-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+             width: 132px; height: 44px; padding: 0 18px; border-radius: 999px;
+             color: #fff; text-decoration: none; border: none; cursor: pointer;
+             font-size: 13.5px; font-weight: 500; line-height: 1;
+             transition: filter .15s, transform .1s, background .15s;
+             flex: none; white-space: nowrap; }
+  .hdr-btn:hover { filter: brightness(1.08); }
+  .hdr-btn:active { transform: translateY(1px); }
+  .hdr-btn svg { width: 18px; height: 18px; fill: #fff; flex: none; }
+  .hdr-btn--gh { background: #24292f; }
+  .hdr-btn--gh:hover { background: #1b1f23; }
+  .hdr-btn--xhs { background: #FE2C55; }
+  .hdr-btn--xhs:hover { background: #E81C45; }
+  .hdr-btn--wx { background: #07C160; }
+  .hdr-btn--wx:hover { background: #06AD56; }
+  .hdr-btn--exit { background: #fff; color: var(--soft); border: 1px solid var(--border); }
+  .hdr-btn--exit svg { fill: var(--soft); }
+  .hdr-btn--exit:hover { border-color: var(--primary); color: var(--primary); background: #fff;
+                         filter: none; }
+  .hdr-btn--exit:hover svg { fill: var(--primary); }
 
   /* 卡片通用（Neve 大圆角卡片） */
   .card { background: var(--card); border: 1px solid var(--border-soft);
@@ -198,10 +212,22 @@
         <div class="sub">本地程序 · 不上传任何文件到网络 · 支持 PDF / Word / Excel</div>
       </div>
     </div>
-    <a class="github-btn" href="https://github.com/tsinghuaking/Batch-Print" target="_blank" rel="noopener" title="GitHub 仓库">
+    <a class="hdr-btn hdr-btn--wx" href="https://work.weixin.qq.com/kfid/kfc417696ba70e9fc0c" target="_blank" rel="noopener" title="企业微信">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4C5.13 4 2 6.57 2 9.8c0 1.78.95 3.37 2.45 4.47L4 17l2.78-1.55c.7.18 1.45.28 2.22.28.13 0 .25 0 .38-.01A5.7 5.7 0 0 1 9 14c0-3.31 3.13-6 7-6 .26 0 .51.02.76.05C16.07 5.7 12.86 4 9 4zm-2 4a1 1 0 1 1 0 2 1 1 0 0 1 0-2zm4 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2zM22 14c0-2.76-2.69-5-6-5s-6 2.24-6 5 2.69 5 6 5c.61 0 1.18-.09 1.72-.25L20 20l-.36-2.16A4.65 4.65 0 0 0 22 14zm-7.5-1a.75.75 0 1 1 0 1.5.75.75 0 0 1 0-1.5zm3 0a.75.75 0 1 1 0 1.5.75.75 0 0 1 0-1.5z"/></svg>
+      <span>微信</span>
+    </a>
+    <a class="hdr-btn hdr-btn--xhs" href="https://www.xiaohongshu.com/user/profile/5c23b1d700000000070127bc" target="_blank" rel="noopener" title="小红书">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-4.35-7-10a4 4 0 0 1 7-2.65A4 4 0 0 1 19 11c0 5.65-7 10-7 10z"/></svg>
+      <span>小红书</span>
+    </a>
+    <a class="hdr-btn hdr-btn--gh" href="https://github.com/tsinghuaking/Batch-Print" target="_blank" rel="noopener" title="GitHub 仓库">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.11.79-.25.79-.56v-2.13c-3.2.7-3.87-1.36-3.87-1.36-.52-1.33-1.27-1.69-1.27-1.69-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.02 1.76 2.69 1.25 3.35.96.1-.75.4-1.25.72-1.54-2.55-.29-5.23-1.28-5.23-5.7 0-1.26.45-2.29 1.18-3.1-.12-.29-.51-1.46.11-3.05 0 0 .96-.31 3.15 1.18.91-.25 1.89-.38 2.86-.38.97 0 1.95.13 2.86.38 2.19-1.49 3.15-1.18 3.15-1.18.62 1.59.23 2.76.11 3.05.73.81 1.18 1.84 1.18 3.1 0 4.43-2.69 5.41-5.25 5.69.41.36.78 1.06.78 2.14v3.17c0 .31.21.68.8.56C20.21 21.38 23.5 17.08 23.5 12 23.5 5.65 18.35.5 12 .5z"/></svg>
       <span>GitHub</span>
     </a>
+    <button class="hdr-btn hdr-btn--exit" id="exitBtn" title="停止后台服务并退出程序">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 13v-2H7V8l-5 4 5 4v-3h9zm3-10H9c-1.1 0-2 .9-2 2v3h2V5h10v14H9v-3H7v3c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg>
+      <span>退出程序</span>
+    </button>
   </div>
 
   <div class="card">
@@ -404,6 +430,17 @@ function loadPrinters() {
   }).catch(e => $("printerMsg").textContent = "读取失败：" + e);
 }
 $("refreshPrinter").onclick = loadPrinters;
+
+$("exitBtn").onclick = async () => {
+  if (!confirm("确定退出批量打印工具？后台服务将一并关闭。")) return;
+  try { await fetch("/shutdown", { method: "POST" }); } catch (e) {}
+  // 先尝试关掉本标签页：应用模式 / 脚本打开的窗口可被关闭；普通标签页浏览器出于安全会忽略
+  window.close();
+  document.body.innerHTML =
+    '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;'
+    + 'font:16px -apple-system,\'PingFang SC\',\'Microsoft YaHei\',sans-serif;color:#111827;">'
+    + '程序已退出，现在可以关闭这个页面了。</div>';
+};
 
 $("setDefault").onclick = () => {
   const p = $("printer").value;

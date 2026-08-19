@@ -29,6 +29,16 @@ ASSETS = os.path.join(RES, "assets")
 PORT = 5001
 ALLOWED = {".pdf", ".doc", ".docx", ".xls", ".xlsx"}
 
+if getattr(sys, "frozen", False):
+    # 无黑窗打包后，日志写入 exe 旁边的「运行日志.txt」（每次启动重新写），
+    # 出问题把该文件发给维护者即可排查
+    try:
+        _log = open(os.path.join(APP_DIR, "运行日志.txt"), "w",
+                    encoding="utf-8", buffering=1)
+        sys.stdout = sys.stderr = _log
+    except Exception:
+        pass
+
 CONFIG_DIR = os.path.join(os.path.expanduser("~"), ".batch_print")
 CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
 
@@ -184,6 +194,10 @@ class Handler(BaseHTTPRequestHandler):
             self._post_print_one(data)
         elif p == "/print":
             self._post_print(data)
+        elif p == "/shutdown":
+            # 前端「退出程序」按钮调用：无黑窗模式下这是唯一的退出方式
+            self._send_json({"ok": True})
+            threading.Timer(0.5, lambda: os._exit(0)).start()
         else:
             self._send_json({"error": "not found"}, 404)
 
@@ -321,16 +335,24 @@ def port_in_use(p):
         s.close()
 
 
+def open_browser(url):
+    """用系统默认浏览器打开网页（普通标签页）。"""
+    webbrowser.open(url)
+
+
 if __name__ == "__main__":
     print_core.ensure_uploads()
     if port_in_use(PORT):
         print(f"端口 {PORT} 已被占用，可能已有实例在运行，直接打开浏览器。")
-        webbrowser.open(f"http://127.0.0.1:{PORT}")
+        open_browser(f"http://127.0.0.1:{PORT}")
     else:
         server = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
-        threading.Timer(1.2, lambda: webbrowser.open(f"http://127.0.0.1:{PORT}")).start()
+        threading.Timer(1.2, lambda: open_browser(f"http://127.0.0.1:{PORT}")).start()
         print(f"批量打印服务已启动: http://127.0.0.1:{PORT}")
-        print("关闭本窗口（或按 Ctrl+C）即停止服务。")
+        if getattr(sys, "frozen", False):
+            print("点击网页右上角「退出程序」按钮即可停止服务。")
+        else:
+            print("关闭本窗口（或按 Ctrl+C）即停止服务。")
         try:
             server.serve_forever()
         except KeyboardInterrupt:

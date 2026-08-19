@@ -33,10 +33,11 @@ Key features:
 - 💾 **Remember the default printer**: click "Set as default" and it is auto-selected next time — no more dropdown hunting
 - 🔄 **One-click reprint of failures**: failed files are marked red; the "Reprint failed files" button retries just those — no need to start over
 - ✅ **Real-time status feedback**: each file turns green "Done" on success, or red "Failed" with details in the log
-- 🎨 **Modern UI**: Neve-inspired design, Apple system font stack, custom rounded overlay dropdowns (no layout shift, no native browser dropdowns), soft palette
-- 🚀 **Single-file portable exe**: built only on the Python standard library (no third-party web framework); the
-  SumatraPDF engine is **embedded in the exe** — just double-click to launch and it opens your browser automatically.
-  You can also drop a `bin/` folder next to the exe to use an external engine and shrink the file.
+- 🎨 **Modern UI**: Neve-inspired design, Apple system font stack, custom rounded overlay dropdowns (no layout shift, no native browser dropdowns), soft palette, with a header logo and "Batch Print 批量打印工具" title
+- 🔗 **Header shortcut buttons**: WeChat, Xiaohongshu (RED) and GitHub buttons on the top-right (official brand colors, uniform size) for contacting the author and following the project
+- 🪟 **No black window, opens in your browser**: built only on the Python standard library (no third-party web framework); the
+  SumatraPDF engine is **embedded in the exe** — double-click opens the page in your system's default browser (no console window),
+  and the "Exit program" button on the top-right stops the service. You can also drop a `bin/` folder next to the exe to use an external engine and shrink the file.
 - ⚡ **Faster prints**: 120-second printer list cache, Office files are pre-converted to PDF (status shows "Converting...") before serial submission — no more waiting mid-print
 
 ## Preview
@@ -50,9 +51,9 @@ Key features:
 1. Download **`BatchPrint.exe`** from [Releases](https://github.com/tsinghuaking/Batch-Print/releases)
    (single file, with embedded SumatraPDF engine, ~38MB).
 2. **Double-click** `BatchPrint.exe`:
-   - A black console window appears (don't close it — closing stops the service);
-   - Your default browser opens automatically to `http://127.0.0.1:5001`.
-3. Close that console window when you're done.
+   - It opens the print page in your system's default browser automatically (no black box);
+   - If it doesn't open, visit `http://127.0.0.1:5001` manually.
+3. When done, click "Exit program" on the top-right to close the window and stop the service.
 
 > If port `5001` is already taken (a previous instance is running), the app simply opens your browser to the
 > existing service instead of starting a second one.

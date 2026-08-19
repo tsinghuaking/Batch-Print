@@ -13,6 +13,13 @@ import threading
 import uuid
 import sys
 
+if os.name == "nt":
+    # 打包成无黑窗 exe 后，调用外部程序（SumatraPDF/PowerShell/LibreOffice）
+    # 若不加此标记，每次调用都会闪一个黑色控制台窗口
+    NO_WINDOW = subprocess.CREATE_NO_WINDOW
+else:
+    NO_WINDOW = 0
+
 if getattr(sys, "frozen", False):
     # 打包后：BASE 为只读资源目录（bin/、templates/ 已内嵌于此），
     # APP_DIR 为 exe 所在目录（可写、持久），上传文件与配置放这里。
@@ -107,7 +114,8 @@ def _list_printers_file():
     ps = (f"(Get-Printer | ForEach-Object {{ $_.Name }}) | "
           f"Out-File -Encoding utf8 '{tmp.replace(chr(92), '/')}'")
     subprocess.run(["powershell.exe", "-NoProfile", "-Command", ps],
-                   capture_output=True, timeout=30, check=True)
+                   capture_output=True, timeout=30, check=True,
+                   creationflags=NO_WINDOW)
     with open(tmp, "r", encoding="utf-8-sig") as f:
         names = [l.strip() for l in f.read().splitlines() if l.strip()]
     try:
@@ -150,7 +158,8 @@ def to_pdf(src_path, ext):
            "--outdir", outdir, src_path]
     with _OFFICE_LOCK:
         r = subprocess.run(cmd, capture_output=True, text=True,
-                           errors="replace", timeout=180)
+                           errors="replace", timeout=180,
+                           creationflags=NO_WINDOW)
     if r.returncode != 0:
         raise RuntimeError(f"LibreOffice 转换失败: {r.stderr[-500:]}")
     # 输出文件名 = 原 basename + .pdf
@@ -222,7 +231,8 @@ def print_pdf(pdf_path, printer, settings, timeout=180):
            "-print-settings", settings, pdf_path]
     try:
         r = subprocess.run(cmd, capture_output=True, text=True,
-                           errors="replace", timeout=timeout)
+                           errors="replace", timeout=timeout,
+                           creationflags=NO_WINDOW)
     except subprocess.TimeoutExpired:
         return False, (f"打印超时（{timeout}s）；某些 PCL 打印机处理双面/多页较慢，"
                        f"可点「重新打印失败的文件」再试，或把任务拆小")

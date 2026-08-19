@@ -11,8 +11,8 @@
 - 若把 exe 同目录放了 bin/（外置 SumatraPDF），会优先用外置版，便于单独更新引擎。
 
 说明：
-- 保留控制台窗口（方便看日志、关闭即停服务）。如需无控制台窗口，
-  在下方 run() 列表里加上 "--windowed"。
+- 无控制台黑窗口（--windowed）。运行日志写入 exe 同目录「运行日志.txt」，
+  页面右上角「退出程序」按钮可停止后台服务。
 """
 import os
 import PyInstaller.__main__
@@ -26,6 +26,7 @@ def main():
         "--name", "批量打印工具",
         "--onefile",
         "--noconfirm",
+        "--windowed",
         "--icon", os.path.join(HERE, "assets", "Batch Print.ico"),
         "--add-data", os.path.join(HERE, "templates") + os.pathsep + "templates",
         "--add-data", os.path.join(HERE, "bin") + os.pathsep + "bin",
