@@ -25,7 +25,7 @@ Everything runs on your own machine — no file is ever uploaded to any network.
 
 Key features:
 
-- 📄 **PDF / Word(.doc/.docx) / Excel(.xls/.xlsx)** — Word & Excel are first converted to PDF via local LibreOffice
+- 📄 **PDF / Word(.doc/.docx) / Excel(.xls/.xlsx) / PPT(.ppt/.pptx)** — Word/Excel/PPT print via local Microsoft Office directly, and PDF via the system reader's "right-click print". No intermediate conversion, fastest and most reliable.
 - 🖨️ **Per-file settings**: duplex (long-edge / short-edge flip), copies, color / monochrome, page range (e.g. `1-3`, `1,3,5-7`)
 - 📋 **Tabular task list**: auto-sorted by filename; columns for index, file, duplex, copies, color, page range, **real-time page count**, status
 - 🎯 **Global + per-file control**: set defaults in the "Global settings" row and click "Apply to all", or tweak any single row
@@ -36,9 +36,9 @@ Key features:
 - 🎨 **Modern UI**: Neve-inspired design, Apple system font stack, custom rounded overlay dropdowns (no layout shift, no native browser dropdowns), soft palette, with a header logo and "Batch Print 批量打印工具" title
 - 🔗 **Header shortcut buttons**: WeChat, Xiaohongshu (RED) and GitHub buttons on the top-right (official brand colors, uniform size) for contacting the author and following the project
 - 🪟 **No black window, opens in your browser**: built only on the Python standard library (no third-party web framework); the
-  SumatraPDF engine is **embedded in the exe** — double-click opens the page in your system's default browser (no console window),
-  and the "Exit program" button on the top-right stops the service. You can also drop a `bin/` folder next to the exe to use an external engine and shrink the file.
-- ⚡ **Faster prints**: 120-second printer list cache, Office files are pre-converted to PDF (status shows "Converting...") before serial submission — no more waiting mid-print
+  printing is done by your local Office and the system PDF reader, so no extra engine is bundled — double-click opens the page in your system's default browser (no console window),
+  and the "Exit program" button on the top-right stops the service.
+- ⚡ **Faster prints**: calls your local Office and system PDF reader directly (same as right-click print) — no intermediate conversion, no engine cold start, fast and reliable paper output
 
 ## Preview
 
@@ -49,7 +49,7 @@ Key features:
 ## Quick Start (regular users, recommended)
 
 1. Download **`BatchPrint.exe`** from [Releases](https://github.com/tsinghuaking/Batch-Print/releases)
-   (single file, with embedded SumatraPDF engine, ~38MB).
+   (single file, with the local print capability built in, ~40MB).
 2. **Double-click** `BatchPrint.exe`:
    - It opens the print page in your system's default browser automatically (no black box);
    - If it doesn't open, visit `http://127.0.0.1:5001` manually.
@@ -57,12 +57,6 @@ Key features:
 
 > If port `5001` is already taken (a previous instance is running), the app simply opens your browser to the
 > existing service instead of starting a second one.
-
-### Want a smaller exe / update the engine separately?
-
-Use the "external" layout: put the `bin/` folder (with `SumatraPDF.exe` and `libmupdf.dll`, `PdfFilter.dll`,
-`PdfPreview.dll`) next to `BatchPrint.exe`. The exe will prefer the external engine and can shrink to ~10MB.
-The `bin/` directory is already included in this repo — just grab it.
 
 ## How to use
 
@@ -73,10 +67,10 @@ The `bin/` directory is already included in this repo — just grab it.
    - Per file: edit each row in the table;
    - Page syntax: `1-3` (pages 1–3), `1,3,5-7` (specific pages), empty = all pages.
 4. **Print**: click "Print":
-   - If Word/Excel files are present, they are batch-converted to PDF in the background (status shows "Converting...");
-   - Once converted, files are submitted to the printer one by one; each row updates live to "Done / Failed";
+   - Each file is submitted straight to your local Office / system PDF reader (same as right-click print), with no intermediate conversion;
+   - Each row updates live to "Done / Failed";
    - If any fail, click "Reprint failed files" to retry only those.
-5. **Inspect the log**: the log panel below the page shows the full command and return for each submission; failures include SumatraPDF's error output for easier debugging.
+5. **Inspect the log**: the log panel below the page shows the printer, settings and return for each submission; failures include the error detail for easier debugging.
 
 ## Run from source (developers)
 
@@ -93,7 +87,7 @@ pip install pyinstaller
 python build_exe.py
 ```
 
-Output: `dist/批量打印工具.exe`. The script uses `--add-data` to embed `bin/` (SumatraPDF engine) and `templates/`
+Output: `dist/批量打印工具.exe`. The script uses `--add-data` to embed `templates/`
 into the exe, so distribution needs only that one file (self-contained, double-click to run).
 
 > Note: GitHub's web upload caps attachments at 25MB. Publish via the CLI instead:
@@ -104,10 +98,9 @@ into the exe, so distribution needs only that one file (self-contained, double-c
 ```
 批量打印工具/
 ├── app.py              # web service (Python stdlib http.server, no third-party deps)
-├── print_core.py       # print core: enumerate printers / Office→PDF / call SumatraPDF
+├── print_core.py       # print core: enumerate printers / local Office direct print / system PDF reader
 ├── templates/
 │   └── index.html      # web UI
-├── bin/                # SumatraPDF engine (shipped in repo, can also be external)
 ├── requirements.txt
 ├── build_exe.py        # build script
 ├── LICENSE
@@ -125,24 +118,21 @@ into the exe, so distribution needs only that one file (self-contained, double-c
 **2. The "WPS PDF" printer name shows garbage characters?**
 That's a bad name WPS wrote into the system at install time (not a bug here), and it's a virtual printer — don't use it for real prints.
 
-**3. Why do I need LibreOffice to print Word / Excel?**
-Word / Excel have no system command-line print interface, so the tool uses LibreOffice to convert them to PDF first,
-then hands the PDF to SumatraPDF. The first conversion of a file may take 1–2 minutes (slow LibreOffice cold start),
-then gets faster. PDF-only users need no LibreOffice.
+**3. What do I need to print Word / Excel / PPT?**
+Just have Microsoft Office (Word/Excel/PowerPoint) installed locally. The tool prints through Office's built-in COM interface directly — no LibreOffice or any intermediate conversion; if Office is missing it falls back to LibreOffice to export PDF first. PDF printing relies on the system's associated PDF reader (e.g. Edge, Adobe Reader) — no extra install needed.
 
 **4. Where do uploaded files go?**
 They are temporarily stored in `%USERPROFILE%/.batch_print/uploads/` and are not auto-deleted after printing — clean up manually if needed.
 
 **5. The printer does nothing / is super slow?**
 - The first time you switch printers, the app enumerates all system printers (~1–2s) and caches the list for 120 seconds;
-- Word / Excel files are pre-converted in the background when you click "Print" (status shows "Converting..."), then submitted serially — no mid-print blocking;
-- For many large files, please wait for the table status to change from "Converting..." to "Printing".
+- The tool calls your local Office / system PDF reader directly (same as right-click print), so paper usually comes out fast; if nothing happens, make sure you selected a real printer and it is not "Paused / Offline";
+- Virtual printers (Microsoft Print to PDF / WPS PDF / Adobe PDF) pop a "Save As" dialog and don't suit silent batch printing.
 
 ## Third-party licenses
 
-- Print engine **SumatraPDF** (embedded in the release exe, also external-able) is GPLv3 — source at
-  <https://github.com/sumatrapdfreader/sumatrapdf>
-- This project uses only the Python standard library (no Flask or other web framework) and is released under MIT (see [LICENSE](LICENSE)).
+- This tool uses only the Python standard library (no Flask or other web framework) for the web service; printing is done by the local Office and the system PDF reader, with no bundled third-party print engine.
+- Released under the [MIT License](LICENSE).
 
 ## License
 

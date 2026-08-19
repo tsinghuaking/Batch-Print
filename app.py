@@ -202,25 +202,9 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json({"error": "not found"}, 404)
 
     def _post_prepare(self, data):
-        """预转换端点：把 Word/Excel 提前转成 PDF（LibreOffice 冷启动慢，
-        前端在打印循环前批量调用，打印时就能立即出纸）。"""
-        fid = (data or {}).get("id", "")
-        if not fid or "/" in fid or "\\" in fid or ".." in fid:
-            self._send_json({"ok": False, "msg": "非法 id"}, 400)
-            return
-        path = os.path.join(print_core.UPLOADS, fid)
-        if not os.path.exists(path):
-            self._send_json({"ok": False, "msg": "文件不存在，请重新上传"}, 404)
-            return
-        ext = os.path.splitext(path)[1].lower()
-        if ext == ".pdf":
-            self._send_json({"ok": True, "cached": True})
-            return
-        try:
-            print_core.to_pdf(path, ext)
-            self._send_json({"ok": True})
-        except Exception as e:
-            self._send_json({"ok": False, "msg": str(e)})
+        """预转换端点：Office 现改为本机直打，无需提前转 PDF，故直接返回成功。
+        （保留该接口仅为了兼容前端调用；真正需要转 PDF 的场景是统计页数，已在上传时完成。）"""
+        self._send_json({"ok": True})
 
     def _post_default(self, data):
         name = (data or {}).get("printer", "")
@@ -269,20 +253,38 @@ class Handler(BaseHTTPRequestHandler):
                 {"ok": False, "id": fid, "name": name, "msg": "文件不存在，请重新上传"}, 404)
         ext = os.path.splitext(path)[1].lower()
         try:
-            pdf = print_core.to_pdf(path, ext)
-            settings = print_core.build_settings(
-                (data or {}).get("duplex", "simplex"),
-                (data or {}).get("copies", 1),
-                (data or {}).get("color", "color"),
-                (data or {}).get("pages", ""),
-            )
-            # 180s 超时：对 PCL/GDI 双面/多页更宽容
-            ok, msg = print_core.print_pdf(pdf, printer, settings, timeout=180)
+            settings = {
+                "duplex": (data or {}).get("duplex", "simplex"),
+                "copies": (data or {}).get("copies", 1),
+                "color": (data or {}).get("color", "color"),
+                "pages": (data or {}).get("pages", ""),
+            }
+            # PDF 走系统关联程序「右击打印」；Office 走本机 Office 直打；均不经 SumatraPDF
+            ok, msg = print_core.print_file(path, ext, printer, settings)
+            desc = self._settings_desc(settings)
             return self._send_json(
-                {"ok": ok, "id": fid, "name": name, "msg": msg, "settings": settings})
+                {"ok": ok, "id": fid, "name": name, "msg": msg,
+                 "settings": desc})
         except Exception as e:
             return self._send_json(
                 {"ok": False, "id": fid, "name": name, "msg": str(e)})
+
+    @staticmethod
+    def _settings_desc(s):
+        """把设置字典拼成可读串，用于前端日志展示。"""
+        d = {"simplex": "单面", "duplex": "双面长边",
+             "duplexshort": "双面短边"}.get(s.get("duplex"), "单面")
+        col = "彩色" if s.get("color") == "color" else "黑白"
+        c = s.get("copies", 1)
+        try:
+            c = int(c)
+        except Exception:
+            c = 1
+        parts = [d, col, f"{c}份"]
+        pages = (s.get("pages") or "").strip()
+        if pages:
+            parts.append("页码:" + pages)
+        return "·".join(parts)
 
     def _post_print(self, data):
         printer = (data or {}).get("printer", "")
@@ -310,16 +312,16 @@ class Handler(BaseHTTPRequestHandler):
                 continue
             ext = os.path.splitext(path)[1].lower()
             try:
-                pdf = print_core.to_pdf(path, ext)
-                settings = print_core.build_settings(
-                    it.get("duplex", "simplex"),
-                    it.get("copies", 1),
-                    it.get("color", "color"),
-                    it.get("pages", ""),
-                )
-                ok, msg = print_core.print_pdf(pdf, printer, settings)
-                results.append({"name": name, "id": fid, "ok": ok, "msg": msg,
-                                "settings": settings})
+                settings = {
+                    "duplex": it.get("duplex", "simplex"),
+                    "copies": it.get("copies", 1),
+                    "color": it.get("color", "color"),
+                    "pages": it.get("pages", ""),
+                }
+                ok, msg = print_core.print_file(path, ext, printer, settings)
+                desc = self._settings_desc(settings)
+                results.append({"name": name, "id": fid, "ok": ok,
+                                "msg": msg, "settings": desc})
                 if ok:
                     ok_count += 1
             except Exception as e:

@@ -293,13 +293,14 @@
     <div id="log" style="margin-top:14px;"></div>
     <div class="warn-note">
       提示：虚拟打印机（Microsoft Print to PDF / WPS PDF / Adobe PDF）会弹出“另存为”窗口，
-      不适合静默批量打印；请选真实打印机。Word/Excel 会先由 LibreOffice 转成 PDF 再打印。
+      不适合静默批量打印；请选真实打印机。PDF 由系统关联的 PDF 阅读器直接打印（等同右键打印），
+      Word/Excel/PPT 由本机 Office 直接打印，均不经过 SumatraPDF / LibreOffice，速度更快更稳。
     </div>
   </div>
 
   <footer class="site-footer">
     <div>© 2026 <b>Vincent</b> · 批量打印工具 · 仅供个人使用，未经授权禁止转载与商业用途</div>
-    <div class="muted">本地程序，文件不上传网络 · 引擎：SumatraPDF + LibreOffice</div>
+    <div class="muted">本地程序，文件不上传网络 · 引擎：本机 Office + 系统 PDF 阅读器（本地直打）</div>
   </footer>
 </div>
 

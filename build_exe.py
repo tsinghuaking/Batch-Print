@@ -7,8 +7,8 @@
 
 产物：dist/批量打印工具.exe
 - 仅用 Python 标准库，不含 Flask。
-- templates/ 与 bin/（SumatraPDF 引擎）全部内嵌进单个 exe，双击即用、自包含。
-- 若把 exe 同目录放了 bin/（外置 SumatraPDF），会优先用外置版，便于单独更新引擎。
+- templates/ 全部内嵌进单个 exe，双击即用、自包含。
+- 打印改用本机 Office 直打 + 系统 PDF 阅读器（右键打印），不再依赖 SumatraPDF / LibreOffice，故不再打包 bin/。
 
 说明：
 - 无控制台黑窗口（--windowed）。运行日志写入 exe 同目录「运行日志.txt」，
@@ -29,8 +29,12 @@ def main():
         "--windowed",
         "--icon", os.path.join(HERE, "assets", "Batch Print.ico"),
         "--add-data", os.path.join(HERE, "templates") + os.pathsep + "templates",
-        "--add-data", os.path.join(HERE, "bin") + os.pathsep + "bin",
         "--add-data", os.path.join(HERE, "assets") + os.pathsep + "assets",
+        "--hidden-import", "win32com",
+        "--hidden-import", "win32com.client",
+        "--hidden-import", "win32print",
+        "--hidden-import", "pythoncom",
+        "--hidden-import", "pywintypes",
     ])
 
 
