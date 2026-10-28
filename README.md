@@ -39,12 +39,12 @@
 ## 预览
 
 <div align="center">
-  <img src="docs/preview.png" alt="界面预览">
+  <img src="docs/preview.png" alt="界面预览（V1.7）">
 </div>
 
 ## 快速开始（普通用户，推荐）
 
-1. 到 [Releases](https://github.com/tsinghuaking/Batch-Print/releases) 下载 **`BatchPrint.exe`**（单文件，自带本机打印能力，约 21MB）。
+1. 到 [Releases](https://github.com/tsinghuaking/Batch-Print/releases) 下载 **`BatchPrint.exe`**（单文件，自带本机打印能力，约 16MB）。
 2. **双击** `BatchPrint.exe`：
    - 自动用系统默认浏览器打开打印页面（无黑框）；
    - 如未自动打开，请手动访问 `http://127.0.0.1:5001`。
@@ -129,6 +129,7 @@ python build_exe.py
 - **修正 PPT 页码打印**：原写法传错参数会报错，现按页码区间逐段提交，与 Word/Excel 一致
 - **移除微信、小红书按钮**：界面右上角只保留 GitHub 仓库入口
 - **清理死代码**：删掉 SumatraPDF / LibreOffice 的残留实现（`print_pdf`、`build_settings`、`find_soffice` 等），代码更轻
+- **体积更小**：exe 由 20.7MB 降到 16.1MB（排除了用不到的 PIL / numpy）
 - **文档同步**：修正 Python 版本徽标（3.8+），补齐 PPT 相关说明与更新日志
 
 ### V1.6（2026-08-19）

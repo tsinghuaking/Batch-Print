@@ -636,19 +636,31 @@ if (_qs.get("demo") === "fill") {
   // 预填一台虚拟默认打印机（避免 headless 截图空 trigger）
   const _sel = $("printer");
   if (_sel) {
-    ["WPS PDF", "Generic 36C-9SeriesPCL", "Generic / Text Only", "Microsoft Print to PDF", "Fax"]
+    ["Generic 36C-9SeriesPCL", "WPS PDF", "Microsoft Print to PDF", "Generic / Text Only", "Fax"]
       .forEach(n => { const o = document.createElement("option"); o.value = n; o.textContent = n; _sel.appendChild(o); });
-    _sel.value = "WPS PDF";
+    _sel.value = "Generic 36C-9SeriesPCL";
     _sel.dispatchEvent(new Event("change", { bubbles: true }));
   }
   [
-    { name: "2024 年度报告.pdf", ext: ".pdf", pages: 6 },
-    { name: "产品说明书 v2.docx", ext: ".docx", pages: 12 },
-    { name: "财务季度汇总.xlsx", ext: ".xlsx", pages: 5 },
+    { name: "2026年10月物资采购月度结算单.pdf", ext: ".pdf", pages: 3 },
+    { name: "材料设备招标询价函.docx", ext: ".docx", pages: 12 },
+    { name: "分包队伍材料领用台账.xlsx", ext: ".xlsx", pages: 5 },
+    { name: "项目周例会汇报.pptx", ext: ".pptx", pages: 8 },
   ].forEach(x => items.push({ id: "demo_" + Math.random().toString(36).slice(2,10), name: x.name, ext: x.ext, pages: x.pages }));
   sortItemsByName();
   render();
   refreshRetryBtn();
+  // 演示「打印完成」的效果：前 3 行绿色「已完成」，第 4 行留「待打印」
+  setTimeout(() => {
+    const sts = document.querySelectorAll("#tbody .st");
+    [0, 1, 2].forEach(i => {
+      if (sts[i]) { sts[i].className = "st ok nowrap"; sts[i].textContent = "已完成"; }
+    });
+    $("log").textContent =
+      "[17:12:03] 2026年10月物资采购月度结算单.pdf → 单面·黑白·1份 已发送打印任务（本地程序打印）\n" +
+      "[17:12:05] 材料设备招标询价函.docx → 双面长边·黑白·2份 已发送打印任务（Word 直打）\n" +
+      "[17:12:07] 分包队伍材料领用台账.xlsx → 单面·黑白·1份 已发送打印任务（Excel 直打）";
+  }, 100);
   // ?demo=fill_color 时同步自动点开首行的「彩色」下拉，便于截图验证
   if (_qs.get("demo_color") === "1") {
     setTimeout(() => {

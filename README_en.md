@@ -43,13 +43,13 @@ Key features:
 ## Preview
 
 <div align="center">
-  <img src="docs/preview.png" alt="UI preview">
+  <img src="docs/preview.png" alt="UI preview (V1.7)">
 </div>
 
 ## Quick Start (regular users, recommended)
 
 1. Download **`BatchPrint.exe`** from [Releases](https://github.com/tsinghuaking/Batch-Print/releases)
-   (single file, with the local print capability built in, ~21MB).
+   (single file, with the local print capability built in, ~16MB).
 2. **Double-click** `BatchPrint.exe`:
    - It opens the print page in your system's default browser automatically (no black box);
    - If it doesn't open, visit `http://127.0.0.1:5001` manually.
@@ -136,6 +136,7 @@ They are temporarily stored in `%USERPROFILE%/.batch_print/uploads/` and are not
 - **Fixed PPT page-range printing**: the old call passed a wrong argument and failed; page ranges are now submitted per segment, same as Word/Excel
 - **Removed WeChat and Xiaohongshu buttons**: only the GitHub button remains in the header
 - **Dead code cleanup**: dropped leftover SumatraPDF / LibreOffice implementations (`print_pdf`, `build_settings`, `find_soffice`, ...)
+- **Smaller exe**: 20.7MB -> 16.1MB (excluded unused PIL / numpy)
 - **Docs**: fixed the Python badge (3.8+), updated PPT notes and added this changelog
 
 ### V1.6 (2026-08-19)
