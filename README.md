@@ -7,7 +7,7 @@
 <div align="center">
 
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
-![Python](https://img.shields.io/badge/Python-3.14-blue.svg)
+![Python](https://img.shields.io/badge/Python-3.8%2B-blue.svg)
 ![OS](https://img.shields.io/badge/OS-Windows-blue.svg)
 [![Release](https://img.shields.io/github/v/release/tsinghuaking/Batch-Print?label=Release)](https://github.com/tsinghuaking/Batch-Print/releases)
 [![Download](https://img.shields.io/github/downloads/tsinghuaking/Batch-Print/total?label=Downloads)](https://github.com/tsinghuaking/Batch-Print/releases)
@@ -23,7 +23,7 @@
 
 主要特性：
 
-- 📄 **支持 PDF / Word(.doc/.docx) / Excel(.xls/.xlsx) / PPT(.ppt/.pptx)** —— Word/Excel/PPT 由本机 Microsoft Office 直接打印，PDF 由系统自带阅读器「右击打印」，均不依赖任何中间转换，最快最稳
+- 📄 **支持 PDF / Word(.doc/.docx) / Excel(.xls/.xlsx) / PPT(.ppt/.pptx)**（V1.7 起 PPT 上传与打印完整可用） —— Word/Excel/PPT 由本机 Microsoft Office 直接打印，PDF 由系统自带阅读器「右击打印」，均不依赖任何中间转换，最快最稳
 - 🖨️ **逐文件精细设置**：双面（长边翻转 / 短边翻转）、份数、彩色 / 黑白、页码范围（如 `1-3`、`1,3,5-7`）
 - 📋 **表格化任务列表**：自动按文件名排序，序号、文件、双面、份数、彩色、页码、**实时页数**、状态一目了然
 - 🎯 **全局 + 单文件双层控制**：顶部「全局设置」选好后点「应用到全部」一次性下发，也可在表格里单独改某一行
@@ -32,7 +32,7 @@
 - 🔄 **失败一键重打**：打印失败的文件会标记红色，提供「重新打印失败的文件」按钮单独重试，无需重头再来
 - ✅ **实时状态回执**：每个文件发送成功后，对应行状态变绿色「已完成」；失败显示红色「失败」，下方日志有详情
 - 🎨 **现代化界面**：参考 Neve 主题设计，苹果字体栈、圆角自定义下拉（不挤占布局、覆盖式展开）、柔和配色，头部带 LOGO 与「Batch Print 批量打印工具」标题
-- 🔗 **头部快捷按钮**：右上角提供微信、小红书、GitHub 跳转按钮（平台官方配色，统一大小），便于联系作者与关注项目
+- 🔗 **头部快捷按钮**：右上角提供 GitHub 仓库跳转按钮，方便查看源码与新版本
 - 🪟 **无黑框、普通浏览器打开**：基于 Python 标准库（无第三方 Web 框架），**双击即用系统默认浏览器打开网页**（无控制台黑窗）；用完点右上角「退出程序」即可停止后台服务。打印由本机 Office 与系统 PDF 阅读器完成，无需额外引擎
 - ⚡ **打印提速**：直接调用本机 Office 与系统 PDF 阅读器打印（等同文件右键打印），无中间转换、无引擎冷启动，出纸快且稳
 
@@ -77,22 +77,22 @@ python app.py
 ## 打包成 exe
 
 ```bash
-pip install pyinstaller
+pip install pyinstaller pywin32 pypdf
 python build_exe.py
 ```
 
-产物在 `dist/批量打印工具.exe`。脚本已用 `--add-data` 把 `templates/` 全部打进 exe，
+产物在 `dist/BatchPrint.exe`。脚本已用 `--add-data` 把 `templates/`、`assets/` 全部打进 exe，
 发布时只需这一个文件（自包含、双击即用）。
 
 > 注意：GitHub 网页拖拽上传附件有 25MB 限制；发布时用命令行
-> `gh release create vX.Y "dist/批量打印工具.exe"` 上传（走 uploads API，支持到 2GB）。
+> `gh release create vX.Y "dist/BatchPrint.exe"` 上传（走 uploads API，支持到 2GB）。
 
 ## 目录结构
 
 ```
 批量打印工具/
 ├── app.py              # 网页服务（Python 标准库 http.server，无第三方依赖）
-├── print_core.py       # 打印核心：枚举打印机 / 本机 Office 直打 / 系统 PDF 阅读器打印
+├── print_core.py       # 打印核心：枚举打印机 / 本机 Office 直打 / 系统 PDF 阅读器打印 / 页数统计
 ├── templates/
 │   └── index.html      # 网页界面
 ├── requirements.txt
@@ -121,6 +121,24 @@ python build_exe.py
 - 首次切换打印机时会枚举系统所有打印机（约 1~2 秒），之后会缓存 120 秒；
 - 本工具直接调用本机 Office / 系统 PDF 阅读器打印（等同文件右键打印），一般出纸很快；若仍无反应，请确认选的是真实打印机、且未处于「暂停 / 脱机」状态；
 - 虚拟打印机（Microsoft Print to PDF / WPS PDF / Adobe PDF）会弹「另存为」窗口，不适合静默批量打印。
+
+## 更新日志
+
+### V1.7（2026-10-28）
+- **修好 PPT 支持**：之前只写在说明里、实际上传会被拒，现已放行 `.ppt/.pptx`，并由本机 PowerPoint 直接打印
+- **修正 PPT 页码打印**：原写法传错参数会报错，现按页码区间逐段提交，与 Word/Excel 一致
+- **移除微信、小红书按钮**：界面右上角只保留 GitHub 仓库入口
+- **清理死代码**：删掉 SumatraPDF / LibreOffice 的残留实现（`print_pdf`、`build_settings`、`find_soffice` 等），代码更轻
+- **文档同步**：修正 Python 版本徽标（3.8+），补齐 PPT 相关说明与更新日志
+
+### V1.6（2026-08-19）
+- 改为本机 Office 直打 + 系统 PDF 阅读器「右键打印」，移除 SumatraPDF / LibreOffice 依赖，出纸更快
+
+### V1.5（2026-08-18）
+- Neve 风格界面重做、表格化任务列表、失败一键重打
+
+### V1.0（2026-08-18）
+- 首个可用版本
 
 ## 第三方组件许可
 

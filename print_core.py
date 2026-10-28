@@ -5,12 +5,11 @@
       指定页码时用 pypdf 抽取成临时 PDF 再打印，从而精确打第几页
 - Word/Excel/PPT：用本机 Microsoft Office COM 直接 PrintOut，不经任何中间转换
 - 双面/彩色/份数/页码 通过临时修改打印机默认 DEVMODE 或 Office PrintOut 参数实现（打印后还原）
-- 不再依赖 SumatraPDF / LibreOffice
+- 不依赖 SumatraPDF / LibreOffice（V1.7 已彻底移除相关代码）
 - Office 转 PDF（to_pdf）仅用于后台统计页数，不参与打印
 """
 import os
 import re
-import json
 import subprocess
 import threading
 import uuid
@@ -18,54 +17,33 @@ import sys
 import tempfile
 
 if os.name == "nt":
-    # 打包成无黑窗 exe 后，调用外部程序（SumatraPDF/PowerShell/LibreOffice）
-    # 若不加此标记，每次调用都会闪一个黑色控制台窗口
+    # 打包成无黑窗 exe 后，调用外部程序（PowerShell）若不加此标记，
+    # 每次调用都会闪一个黑色控制台窗口
     NO_WINDOW = subprocess.CREATE_NO_WINDOW
 else:
     NO_WINDOW = 0
 
 if getattr(sys, "frozen", False):
-    # 打包后：BASE 为只读资源目录（bin/、templates/ 已内嵌于此），
+    # 打包后：BASE 为只读资源目录（templates/ 已内嵌于此），
     # APP_DIR 为 exe 所在目录（可写、持久），上传文件与配置放这里。
     BASE = sys._MEIPASS
     APP_DIR = os.path.dirname(sys.executable)
-    # 若用户把 bin/ 放到 exe 同目录（外置分发），优先用外置版（便于单独更新引擎）
-    EXTERNAL_BIN = os.path.join(APP_DIR, "bin")
-    BIN = EXTERNAL_BIN if os.path.exists(os.path.join(EXTERNAL_BIN, "SumatraPDF.exe")) else os.path.join(BASE, "bin")
 else:
     BASE = os.path.dirname(os.path.abspath(__file__))
     APP_DIR = BASE
-    BIN = os.path.join(APP_DIR, "bin")
 
-SUMATRA = os.path.join(BIN, "SumatraPDF.exe")
 UPLOADS = os.path.join(APP_DIR, "uploads")
-
-# 常见 LibreOffice 安装位置（soffice.exe）
-SOFFICE_CANDIDATES = [
-    r"C:\Program Files\LibreOffice\program\soffice.exe",
-    r"C:\Program Files (x86)\LibreOffice\program\soffice.exe",
-    r"D:\Program Files\LibreOffice\program\soffice.exe",
-]
 
 OFFICE_EXT = {".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx"}
 
-# LibreOffice 转换全局锁：soffice 同一用户配置目录不能并发跑多个实例，
-# 否则第二个实例会等锁甚至失败。上传时多文件并行请求页数会同时触发转换，
+# Office 转换全局锁：Word/Excel/PowerPoint 的 COM 自动化不能并发跑多个实例，
+# 否则会互相抢焦点甚至失败。上传时多文件并行请求页数会同时触发转换，
 # 必须串行化（ThreadingHTTPServer 每个请求一个线程）。
 _OFFICE_LOCK = threading.Lock()
 
 
 def ensure_uploads():
     os.makedirs(UPLOADS, exist_ok=True)
-
-
-def find_soffice():
-    for p in SOFFICE_CANDIDATES:
-        if os.path.exists(p):
-            return p
-    # 兜底：在 PATH 里找
-    import shutil
-    return shutil.which("soffice") or shutil.which("soffice.exe")
 
 
 def list_printers():
@@ -134,17 +112,6 @@ def safe_name(name):
     base = os.path.basename(name)
     base = re.sub(r"[^\w\u4e00-\u9fff.\- ]", "_", base)
     return base.strip() or "file"
-
-
-def save_upload(file_storage):
-    """保存上传文件，返回 {id, name, ext}。id 即存储文件名。"""
-    ensure_uploads()
-    orig = safe_name(file_storage.filename or "file")
-    ext = os.path.splitext(orig)[1].lower()
-    fid = f"{uuid.uuid4().hex}_{orig}"
-    path = os.path.join(UPLOADS, fid)
-    file_storage.save(path)
-    return {"id": fid, "name": orig, "ext": ext, "path": path}
 
 
 def _remove_if_exists(p):
@@ -219,47 +186,19 @@ def _office_to_pdf(src, pdf):
     raise ValueError("不支持的 Office 格式: " + ext)
 
 
-def _libreoffice_to_pdf(src, pdf):
-    """LibreOffice 兜底：转换后改名为与源文件同名的 pdf。"""
-    soffice = find_soffice()
-    if not soffice:
-        raise RuntimeError("未找到 LibreOffice（soffice.exe），无法兜底转换。")
-    outdir = os.path.dirname(src)
-    cmd = [soffice, "--headless", "--norestore", "--convert-to", "pdf",
-           "--outdir", outdir, src]
-    r = subprocess.run(cmd, capture_output=True, text=True,
-                       errors="replace", timeout=180, creationflags=NO_WINDOW)
-    if r.returncode != 0:
-        raise RuntimeError(f"LibreOffice 转换失败: {r.stderr[-500:]}")
-    base = os.path.splitext(os.path.basename(src))[0]
-    out_pdf = os.path.join(outdir, base + ".pdf")
-    if not os.path.exists(out_pdf):
-        raise RuntimeError("LibreOffice 未输出 PDF: " + out_pdf)
-    if out_pdf != pdf:
-        _remove_if_exists(pdf)
-        os.replace(out_pdf, pdf)
-    return pdf
-
-
 def to_pdf(src_path, ext):
-    """Office 文件转 PDF；PDF 直接返回原路径。
+    """Office 文件转 PDF（仅用于统计页数）；PDF 直接返回原路径。
 
-    优先用本机 Microsoft Office 原生「导出 PDF」（快、稳、无 LibreOffice 锁冲突）；
-    未装 Office 时回退 LibreOffice。失败抛异常（含各路错误信息）。
+    用本机 Microsoft Office 原生「导出 PDF」，快且稳；未装 Office 时抛异常，
+    调用方（页数统计）会显示「读取失败」，不影响打印。
     """
     if ext == ".pdf":
         return src_path
     if ext not in OFFICE_EXT:
         raise ValueError(f"不支持的格式: {ext}")
     pdf = os.path.splitext(src_path)[0] + ".pdf"
-    errors = []
-    for exporter in (_office_to_pdf, _libreoffice_to_pdf):
-        try:
-            with _OFFICE_LOCK:
-                return exporter(src_path, pdf)
-        except Exception as e:
-            errors.append(f"[{exporter.__name__}] {str(e)[:200]}")
-    raise RuntimeError("Office 与 LibreOffice 均转换失败:\n" + "\n".join(errors))
+    with _OFFICE_LOCK:
+        return _office_to_pdf(src_path, pdf)
 
 
 def get_page_count(src_path, ext):
@@ -281,7 +220,7 @@ def get_page_count(src_path, ext):
 
 
 # ============================================================================
-# 本地原生打印（不再经过 SumatraPDF / LibreOffice）
+# 本地原生打印（不经任何中间转换）
 # - PDF：用系统关联的 PDF 阅读器做「右击 -> 打印」（os.startfile 的 print 动作），
 #        最快最稳，就像在资源管理器里右键打印一样。
 # - Word/Excel/PPT：用本机 Office COM 直接 PrintOut，不经过任何中间转换。
@@ -578,11 +517,13 @@ def _ppt_print(src, printer, settings):
         app.Visible = False
         pres = app.Presentations.Open(os.path.abspath(src), WithWindow=False)
         copies = _int_copies(settings.get("copies", 1))
-        pages = (settings.get("pages", "") or "").strip()
-        # PrintOut(Range, From, To, PrintToFile, Copies, Collate, ActivePrinter)
-        if pages:
-            pres.PrintOut(Range=pages, From=0, To=0,
-                          Copies=copies, ActivePrinter=printer)
+        # PowerPoint 的 PrintOut 用 From/To 指定页码区间（Range 参数是 PrintRange 对象，
+        # 传字符串会报错），故按每段区间逐个提交，与 Word/Excel 保持一致。
+        ranges = _parse_pages(settings.get("pages", ""))
+        if ranges:
+            for a, b in ranges:
+                pres.PrintOut(From=a, To=b, Copies=copies,
+                              ActivePrinter=printer)
         else:
             pres.PrintOut(Copies=copies, ActivePrinter=printer)
         return True, "已发送打印任务（PPT 直打）"
@@ -607,7 +548,7 @@ def _ppt_print(src, printer, settings):
 
 
 def print_office_native(src, ext, printer, settings):
-    """Word/Excel/PPT 用本机 Office COM 直接打印（不走 SumatraPDF / 不转 PDF）。"""
+    """Word/Excel/PPT 用本机 Office COM 直接打印（不经任何中间转换）。"""
     if ext in (".doc", ".docx"):
         return _word_print(src, printer, settings)
     if ext in (".xls", ".xlsx"):
@@ -618,7 +559,7 @@ def print_office_native(src, ext, printer, settings):
 
 
 def print_file(path, ext, printer, settings):
-    """统一打印入口（不经过 SumatraPDF）：
+    """统一打印入口（不经任何中间转换）：
     - PDF：系统关联程序「右击打印」（最快最稳）
     - Word/Excel/PPT：本机 Office COM 直接打印
     settings: {duplex, copies, color, pages}
@@ -630,68 +571,7 @@ def print_file(path, ext, printer, settings):
     return False, "不支持的格式：" + ext
 
 
-def build_settings(duplex, copies, color, pages):
-    """
-    构造 SumatraPDF -print-settings 参数串。
-    duplex: simplex / duplex(长边) / duplexshort(短边)
-    color : color / monochrome
-    copies: 整数
-    pages : 形如 '1-3' / '1,3,5-7' / ''（空=全部）
-    """
-    parts = []
-    if duplex == "duplex":
-        parts.append("duplex")
-    elif duplex == "duplexshort":
-        parts.append("duplexshort")
-    else:
-        parts.append("simplex")
-    parts.append("monochrome" if color == "monochrome" else "color")
-    try:
-        c = int(copies)
-        if c < 1:
-            c = 1
-    except Exception:
-        c = 1
-    if c > 1:
-        parts.append(f"copies={c}")
-    p = (pages or "").strip()
-    if p:
-        # 仅允许数字、逗号、连字符、空格
-        if re.fullmatch(r"[\d,\-\s]+", p):
-            parts.append(f"pages={p.replace(' ', '')}")
-    return ",".join(parts)
-
-
-def print_pdf(pdf_path, printer, settings, timeout=180):
-    """
-    调用 SumatraPDF 静默打印，返回 (ok, msg)。
-
-    timeout: 子进程等待秒数。默认 180 秒。
-    部分 PCL/GDI 打印机在双面/多页模式下驱动层处理较慢，60 秒会误超时。
-    """
-    cmd = [SUMATRA, "-silent", "-print-to", printer,
-           "-print-settings", settings, pdf_path]
-    try:
-        r = subprocess.run(cmd, capture_output=True, text=True,
-                           errors="replace", timeout=timeout,
-                           creationflags=NO_WINDOW)
-    except subprocess.TimeoutExpired:
-        return False, (f"打印超时（{timeout}s）；某些 PCL 打印机处理双面/多页较慢，"
-                       f"可点「重新打印失败的文件」再试，或把任务拆小")
-    except Exception as e:
-        return False, f"调用失败: {e}"
-    # SumatraPDF 打印成功通常返回 0；虚拟 PDF 打印机可能弹窗阻塞，这里只看退出码
-    if r.returncode == 0:
-        return True, "已发送打印任务"
-    # 输出详细原因给前端日志（驱动错误/SumatraPDF 报错）
-    err = (r.stderr or r.stdout or "").strip().splitlines()[-3:]
-    return False, (f"退出码 {r.returncode}\n  cmd: {' '.join(cmd)}\n  "
-                   + "\n  ".join(err) or "无输出")
-
-
 if __name__ == "__main__":
     print("打印机列表:")
     for p in list_printers():
         print(" -", p)
-    print("SumatraPDF:", SUMATRA, os.path.exists(SUMATRA))
-    print("soffice:", find_soffice())

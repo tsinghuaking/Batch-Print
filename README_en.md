@@ -7,7 +7,7 @@ English | [简体中文](README.md)
 <div align="center">
 
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
-![Python](https://img.shields.io/badge/Python-3.14-blue.svg)
+![Python](https://img.shields.io/badge/Python-3.8%2B-blue.svg)
 ![OS](https://img.shields.io/badge/OS-Windows-blue.svg)
 [![Release](https://img.shields.io/github/v/release/tsinghuaking/Batch-Print?label=Release)](https://github.com/tsinghuaking/Batch-Print/releases)
 [![Download](https://img.shields.io/github/downloads/tsinghuaking/Batch-Print/total?label=Downloads)](https://github.com/tsinghuaking/Batch-Print/releases)
@@ -25,7 +25,7 @@ Everything runs on your own machine — no file is ever uploaded to any network.
 
 Key features:
 
-- 📄 **PDF / Word(.doc/.docx) / Excel(.xls/.xlsx) / PPT(.ppt/.pptx)** — Word/Excel/PPT print via local Microsoft Office directly, and PDF via the system reader's "right-click print". No intermediate conversion, fastest and most reliable.
+- 📄 **PDF / Word(.doc/.docx) / Excel(.xls/.xlsx) / PPT(.ppt/.pptx)** (PPT upload and printing fully work since V1.7) — Word/Excel/PPT print via local Microsoft Office directly, and PDF via the system reader's "right-click print". No intermediate conversion, fastest and most reliable.
 - 🖨️ **Per-file settings**: duplex (long-edge / short-edge flip), copies, color / monochrome, page range (e.g. `1-3`, `1,3,5-7`)
 - 📋 **Tabular task list**: auto-sorted by filename; columns for index, file, duplex, copies, color, page range, **real-time page count**, status
 - 🎯 **Global + per-file control**: set defaults in the "Global settings" row and click "Apply to all", or tweak any single row
@@ -34,7 +34,7 @@ Key features:
 - 🔄 **One-click reprint of failures**: failed files are marked red; the "Reprint failed files" button retries just those — no need to start over
 - ✅ **Real-time status feedback**: each file turns green "Done" on success, or red "Failed" with details in the log
 - 🎨 **Modern UI**: Neve-inspired design, Apple system font stack, custom rounded overlay dropdowns (no layout shift, no native browser dropdowns), soft palette, with a header logo and "Batch Print 批量打印工具" title
-- 🔗 **Header shortcut buttons**: WeChat, Xiaohongshu (RED) and GitHub buttons on the top-right (official brand colors, uniform size) for contacting the author and following the project
+- 🔗 **Header shortcut button**: a single GitHub button on the top-right to open the project repository
 - 🪟 **No black window, opens in your browser**: built only on the Python standard library (no third-party web framework); the
   printing is done by your local Office and the system PDF reader, so no extra engine is bundled — double-click opens the page in your system's default browser (no console window),
   and the "Exit program" button on the top-right stops the service.
@@ -83,15 +83,15 @@ python app.py
 ## Build the exe
 
 ```bash
-pip install pyinstaller
+pip install pyinstaller pywin32 pypdf
 python build_exe.py
 ```
 
-Output: `dist/批量打印工具.exe`. The script uses `--add-data` to embed `templates/`
+Output: `dist/BatchPrint.exe`. The script uses `--add-data` to embed `templates/` and `assets/`
 into the exe, so distribution needs only that one file (self-contained, double-click to run).
 
 > Note: GitHub's web upload caps attachments at 25MB. Publish via the CLI instead:
-> `gh release create vX.Y "dist/批量打印工具.exe"` (uses the uploads API, supports up to 2GB).
+> `gh release create vX.Y "dist/BatchPrint.exe"` (uses the uploads API, supports up to 2GB).
 
 ## Project layout
 
@@ -128,6 +128,24 @@ They are temporarily stored in `%USERPROFILE%/.batch_print/uploads/` and are not
 - The first time you switch printers, the app enumerates all system printers (~1–2s) and caches the list for 120 seconds;
 - The tool calls your local Office / system PDF reader directly (same as right-click print), so paper usually comes out fast; if nothing happens, make sure you selected a real printer and it is not "Paused / Offline";
 - Virtual printers (Microsoft Print to PDF / WPS PDF / Adobe PDF) pop a "Save As" dialog and don't suit silent batch printing.
+
+## Changelog
+
+### V1.7 (2026-10-28)
+- **Real PPT support**: `.ppt/.pptx` were documented but rejected on upload; now accepted and printed by local PowerPoint
+- **Fixed PPT page-range printing**: the old call passed a wrong argument and failed; page ranges are now submitted per segment, same as Word/Excel
+- **Removed WeChat and Xiaohongshu buttons**: only the GitHub button remains in the header
+- **Dead code cleanup**: dropped leftover SumatraPDF / LibreOffice implementations (`print_pdf`, `build_settings`, `find_soffice`, ...)
+- **Docs**: fixed the Python badge (3.8+), updated PPT notes and added this changelog
+
+### V1.6 (2026-08-19)
+- Switched to local Office direct printing + system PDF reader "right-click print"; dropped SumatraPDF / LibreOffice
+
+### V1.5 (2026-08-18)
+- Neve-style UI overhaul, tabular task list, one-click reprint of failed files
+
+### V1.0 (2026-08-18)
+- First usable release
 
 ## Third-party licenses
 

@@ -27,7 +27,7 @@ else:
 TEMPLATES = os.path.join(RES, "templates")
 ASSETS = os.path.join(RES, "assets")
 PORT = 5001
-ALLOWED = {".pdf", ".doc", ".docx", ".xls", ".xlsx"}
+ALLOWED = {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx"}
 
 if getattr(sys, "frozen", False):
     # 无黑窗打包后，日志写入 exe 旁边的「运行日志.txt」（每次启动重新写），
@@ -221,7 +221,7 @@ class Handler(BaseHTTPRequestHandler):
         ext = os.path.splitext(name)[1].lower()
         if ext not in ALLOWED:
             self._send_json({"ok": False, "name": name,
-                             "msg": f"不支持的格式 {ext}（仅支持 PDF/Word/Excel）"})
+                             "msg": f"不支持的格式 {ext}（仅支持 PDF/Word/Excel/PPT）"})
             return
         try:
             raw = base64.b64decode((data or {}).get("data", ""))
@@ -259,7 +259,7 @@ class Handler(BaseHTTPRequestHandler):
                 "color": (data or {}).get("color", "color"),
                 "pages": (data or {}).get("pages", ""),
             }
-            # PDF 走系统关联程序「右击打印」；Office 走本机 Office 直打；均不经 SumatraPDF
+            # PDF 走系统关联程序「右击打印」；Word/Excel/PPT 走本机 Office 直打；均不经中间转换
             ok, msg = print_core.print_file(path, ext, printer, settings)
             desc = self._settings_desc(settings)
             return self._send_json(
