@@ -283,12 +283,14 @@
       提示：虚拟打印机（Microsoft Print to PDF / WPS PDF / Adobe PDF）会弹出“另存为”窗口，
       不适合静默批量打印；请选真实打印机。PDF 由系统关联的 PDF 阅读器直接打印（等同右键打印），
       Word/Excel/PPT 由本机 Office 直接打印，均不经过任何中间转换，速度更快更稳。
+      状态是真实结果：程序会查 Windows 打印队列确认是否真的打了出去，打印机没连、脱机、缺纸、卡纸
+      或任务没进队列，都会显示“失败”（鼠标悬停在状态上看具体原因）；连续 2 个失败会停止后续任务。
     </div>
   </div>
 
   <footer class="site-footer">
     <div>© 2026 <b>Vincent</b> · 批量打印工具 · 仅供个人使用，未经授权禁止转载与商业用途</div>
-    <div class="muted">本地程序，文件不上传网络 · 引擎：本机 Office + 系统 PDF 阅读器（本地直打） · V1.7</div>
+    <div class="muted">本地程序，文件不上传网络 · 引擎：本机 Office + 系统 PDF 阅读器（本地直打） · V1.8</div>
   </footer>
 </div>
 
@@ -478,11 +480,13 @@ function getRowState(i) {
   return "wait";
 }
 
-function setRowState(i, kind, text) {
+function setRowState(i, kind, text, tip) {
   const st = document.querySelectorAll("#tbody .st")[i];
   if (!st) return;
   st.className = "st nowrap " + kind;
   st.textContent = text;
+  // 鼠标悬停可看到完整原因（表格列窄，正文只放「已完成 / 失败」）
+  if (tip) st.title = tip; else st.removeAttribute("title");
 }
 
 // 扫描当前失败行数，更新「重新打印失败」按钮可用性
@@ -507,12 +511,20 @@ async function startPrint(indices) {
   const printer = $("printer").value;
   if (!printer) { $("printMsg").textContent = "请选择打印机"; return; }
   busy(true, `正在准备（0 / ${indices.length}）…`);
-  let done = 0, ok = 0, bad = 0;
+  let done = 0, ok = 0, bad = 0, failStreak = 0;
 
   // Office 现改为本机 COM 直打（不转 PDF），无需预转换阶段，直接进入打印循环
   for (const i of indices) {
     const it = items[i];
     if (!it) continue;
+    // 连着 2 个都没打出去，说明打印机有问题，剩下的不再白等（核验一次要十几秒）
+    if (failStreak >= 2) {
+      setRowState(i, "bad", "已中止", "前面连续打印失败，已停止后续任务，请先检查打印机");
+      bad++; failStreak++;
+      log(`· 已跳过 ${it.name}：前面的任务连续失败，请先检查打印机`);
+      done++;
+      continue;
+    }
     // 切到「打印中」
     setRowState(i, "printing", "打印中…");
     $("printMsg").textContent = `正在打印（${done} / ${indices.length}）…`;
@@ -526,23 +538,24 @@ async function startPrint(indices) {
         }),
       }).then(r => r.json());
       if (r.ok) {
-        setRowState(i, "ok", "已完成");
-        ok++;
+        setRowState(i, "ok", "已完成", r.msg);
+        ok++; failStreak = 0;
         log(`✓ ${r.name}：${r.msg}${r.settings ? "  [" + r.settings + "]" : ""}`);
       } else {
-        setRowState(i, "bad", "失败");
-        bad++;
+        setRowState(i, "bad", "失败", r.msg);
+        bad++; failStreak++;
         log(`✗ ${r.name}：${r.msg}${r.settings ? "  [" + r.settings + "]" : ""}`);
       }
     } catch (e) {
-      setRowState(i, "bad", "失败");
-      bad++;
+      setRowState(i, "bad", "失败", "请求异常");
+      bad++; failStreak++;
       log(`✗ ${it.name}：请求异常 ${e}`);
     }
     done++;
   }
   $("printMsg").textContent =
-    `完成：成功 ${ok} / 失败 ${bad} / 共 ${indices.length}`;
+    `完成：成功 ${ok} / 失败 ${bad} / 共 ${indices.length}`
+    + (failStreak >= 2 ? "（已中止剩余任务）" : "");
   busy(false);
   refreshRetryBtn();
 }

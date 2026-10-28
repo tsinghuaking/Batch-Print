@@ -320,6 +320,171 @@ def _restore_printer_mode(printer, prev):
             win32print.ClosePrinter(h)
 
 
+# ============================================================================
+# 打印结果核验（V1.8）
+# 以前只要「发送成功」就显示已完成，打印机没连、脱机、卡纸时也会报成功。
+# 现在改为查 Windows 打印队列：打印前看打印机状态，打印后跟踪作业是否真的
+# 被打印机接受、是否真的打完（或出错）。
+# ============================================================================
+
+# 打印机状态位（PRINTER_INFO_2.Status）中「一定打不出来」的情况
+PRINTER_BAD_STATUS = {
+    0x00000001: "已暂停",
+    0x00000002: "驱动报错",
+    0x00000008: "卡纸",
+    0x00000010: "缺纸",
+    0x00000020: "需要手动送纸",
+    0x00000040: "纸张问题",
+    0x00000080: "脱机（打印机未连接 / 未开机）",
+    0x00000800: "出纸盒已满",
+    0x00001000: "不可用",
+    0x00040000: "无墨粉 / 无墨水",
+    0x00100000: "需要人工干预",
+    0x00200000: "内存不足",
+    0x00400000: "机盖未关",
+    0x00800000: "服务器状态未知",
+}
+
+# 作业状态位（JOB_INFO_2.Status）中「这次打印失败了」的情况
+JOB_BAD_STATUS = {
+    0x00000002: "作业出错",
+    0x00000004: "作业被删除",
+    0x00000020: "打印机关机 / 脱机",
+    0x00000040: "缺纸",
+    0x00000100: "作业被删除",
+    0x00000200: "设备队列阻塞",
+    0x00000400: "需要人工干预",
+}
+
+# 虚拟打印机：一定会弹「另存为」窗口，不可能静默出纸
+# 只认明确的特征词；像「Canon MF4800 UFRII LT XPS」这种只是用了 XPS 驱动的
+# 真实打印机不能误判，所以不单独用 "xps" / "pdf" 这种太宽泛的词
+VIRTUAL_PRINTER_HINTS = (
+    "print to pdf", "microsoft print", "xps document writer", "microsoft xps",
+    "document writer", "adobe pdf", "wps pdf", "导出为", "send to",
+    "fax", "传真", "onenote", "virtual", "虚拟",
+)
+
+
+def is_virtual_printer(printer):
+    """按名字粗略判断是否虚拟打印机（会弹另存为，无法静默打印）。"""
+    n = (printer or "").lower()
+    return any(h in n for h in VIRTUAL_PRINTER_HINTS)
+
+
+def printer_problem(printer):
+    """打印前检查打印机是否可用；返回问题说明，可用则返回 None。
+    打不开打印机、虚拟打印机、脱机 / 暂停 / 卡纸等一律返回原因文本。
+    """
+    if is_virtual_printer(printer):
+        return (f"「{printer}」是虚拟打印机，会弹出「另存为」窗口，"
+                "无法静默批量打印，请换成真实打印机")
+    try:
+        import win32print
+    except Exception:
+        return None  # 没装 pywin32 就不做这项检查，交给作业核验兜底
+    try:
+        h = win32print.OpenPrinter(printer)
+    except Exception as e:
+        return f"打不开打印机「{printer}」：{e}"
+    try:
+        try:
+            info = win32print.GetPrinter(h, 2)
+            st = info.get("Status", 0) or 0
+        except Exception as e:
+            return f"读取打印机「{printer}」状态失败：{e}"
+        for bit, txt in PRINTER_BAD_STATUS.items():
+            if st & bit:
+                return f"打印机「{printer}」当前状态：{txt}，无法打印"
+        return None
+    finally:
+        try:
+            win32print.ClosePrinter(h)
+        except Exception:
+            pass
+
+
+def snapshot_jobs(printer):
+    """返回当前打印队列 {JobId: job}；读不到返回空 dict。"""
+    try:
+        import win32print
+        h = win32print.OpenPrinter(printer)
+    except Exception:
+        return {}
+    try:
+        try:
+            jobs = win32print.EnumJobs(h, 0, -1, 2) or []
+        except Exception:
+            return {}
+        return {j.get("JobId"): j for j in jobs}
+    finally:
+        try:
+            win32print.ClosePrinter(h)
+        except Exception:
+            pass
+
+
+def verify_print_result(printer, before, doc_hint="",
+                        wait_appear=20, wait_done=180, poll=0.5):
+    """提交打印后核验真实结果，返回 (ok, msg)。
+
+    - 先在 wait_appear 秒内等待新作业进入队列；一直没出现 = 根本没打。
+    - 出现后跟踪到作业从队列消失（打完）或报错；超过 45 秒毫无进展也算失败。
+    """
+    try:
+        import win32print  # noqa: F401
+    except Exception:
+        return True, "已发送打印任务（未安装 pywin32，无法核验是否真的打出）"
+
+    import time
+    started = time.time()
+    new = {}
+    while time.time() - started < wait_appear:
+        cur = snapshot_jobs(printer)
+        new = {jid: j for jid, j in cur.items() if jid not in before}
+        if new:
+            break
+        time.sleep(poll)
+
+    if not new:
+        return False, (f"{wait_appear} 秒内没在「{printer}」的队列里看到这个打印任务，"
+                       "说明并没有真正打出去。常见原因：打印机没连 / 关机，"
+                       "或 PDF 被关联程序拦下（弹出了打印对话框等你点）")
+
+    # 优先跟踪文档名能对上的那个作业，否则取最新一个
+    jid = None
+    if doc_hint:
+        for k, j in new.items():
+            if doc_hint.lower() in (j.get("pDocument") or "").lower():
+                jid = k
+                break
+    if jid is None:
+        jid = max(new.keys())
+
+    last_pages, last_change = -1, time.time()
+    while time.time() - started < wait_done:
+        cur = snapshot_jobs(printer)
+        j = cur.get(jid)
+        if j is None:
+            return True, "已打印完成（打印队列中的任务已结束）"
+        st = j.get("Status", 0) or 0
+        for bit, txt in JOB_BAD_STATUS.items():
+            if st & bit:
+                extra = j.get("pStatus") or ""
+                return False, f"打印失败：{txt}（系统提示：{extra}）"
+        pages = j.get("PagesPrinted", 0) or 0
+        if pages != last_pages:
+            last_pages, last_change = pages, time.time()
+        if time.time() - last_change > 45:
+            total = j.get("TotalPages", 0) or 0
+            extra = j.get("pStatus") or "排队中"
+            return False, (f"打印任务卡了 45 秒没进展（{extra}，已打 {pages}/{total} 页）。"
+                           "多半是打印机没连上、缺纸或卡纸")
+        time.sleep(poll)
+
+    return False, f"打印任务超过 {int(wait_done)} 秒仍未结束，请检查打印机状态"
+
+
 def print_pdf_native(path, printer, settings):
     """打印 PDF：用系统关联的 PDF 阅读器做「右击 -> 打印」（os.startfile 的 print 动作）。
 
@@ -368,12 +533,20 @@ def print_pdf_native(path, printer, settings):
             except Exception:
                 pass
 
+        # 提交前先给打印队列拍个快照，提交后凭「新出现的作业」判断到底打没打
+        before_jobs = snapshot_jobs(printer)
+        doc_hint = os.path.splitext(os.path.basename(target))[0]
+
         # 系统关联程序「右击打印」（os.startfile 的 print 动作）：最快最稳，
         # 就像在资源管理器里右键打印一样。打印完阅读器是否保持打开由系统/用户决定，
         # 本程序不强行关闭它（避免误杀用户已打开的其它 PDF 文档）。
         os.startfile(target, "print")
-        msg = "已发送打印任务（本地程序打印）"
 
+        # 关键：不再「发出就算成功」，等打印队列给出真实结果
+        ok, vmsg = verify_print_result(printer, before_jobs, doc_hint)
+        if not ok:
+            return False, vmsg
+        msg = "已打印完成（PDF）"
         if tmp:
             msg += f"  [已抽取第 {pages} 页]"
         # 阅读器异步读取临时文件，60 秒后再尝试清理
@@ -417,6 +590,8 @@ def _word_print(src, printer, settings):
         app.ActivePrinter = printer
         doc = app.Documents.Open(os.path.abspath(src))
         copies = _int_copies(settings.get("copies", 1))
+        before_jobs = snapshot_jobs(printer)
+        doc_hint = os.path.splitext(os.path.basename(src))[0]
         base = {"Copies": copies, "Background": False}
         ranges = _parse_pages(settings.get("pages", ""))
         if ranges:
@@ -432,7 +607,10 @@ def _word_print(src, printer, settings):
                 doc.PrintOut(**kw)
         else:
             doc.PrintOut(**base)
-        return True, "已发送打印任务（Word 直打）"
+        ok, vmsg = verify_print_result(printer, before_jobs, doc_hint)
+        if not ok:
+            return False, vmsg
+        return True, "已打印完成（Word）"
     except Exception as e:
         return False, f"Word 打印失败：{e}"
     finally:
@@ -471,6 +649,8 @@ def _excel_print(src, printer, settings):
         app.DisplayAlerts = False
         wb = app.Workbooks.Open(os.path.abspath(src))
         copies = _int_copies(settings.get("copies", 1))
+        before_jobs = snapshot_jobs(printer)
+        doc_hint = os.path.splitext(os.path.basename(src))[0]
         ranges = _parse_pages(settings.get("pages", ""))
         if ranges:
             for a, b in ranges:
@@ -479,7 +659,10 @@ def _excel_print(src, printer, settings):
         else:
             wb.PrintOut(Copies=copies, ActivePrinter=printer,
                         IgnorePrintAreas=True)
-        return True, "已发送打印任务（Excel 直打）"
+        ok, vmsg = verify_print_result(printer, before_jobs, doc_hint)
+        if not ok:
+            return False, vmsg
+        return True, "已打印完成（Excel）"
     except Exception as e:
         return False, f"Excel 打印失败：{e}"
     finally:
@@ -517,6 +700,8 @@ def _ppt_print(src, printer, settings):
         app.Visible = False
         pres = app.Presentations.Open(os.path.abspath(src), WithWindow=False)
         copies = _int_copies(settings.get("copies", 1))
+        before_jobs = snapshot_jobs(printer)
+        doc_hint = os.path.splitext(os.path.basename(src))[0]
         # PowerPoint 的 PrintOut 用 From/To 指定页码区间（Range 参数是 PrintRange 对象，
         # 传字符串会报错），故按每段区间逐个提交，与 Word/Excel 保持一致。
         ranges = _parse_pages(settings.get("pages", ""))
@@ -526,7 +711,10 @@ def _ppt_print(src, printer, settings):
                               ActivePrinter=printer)
         else:
             pres.PrintOut(Copies=copies, ActivePrinter=printer)
-        return True, "已发送打印任务（PPT 直打）"
+        ok, vmsg = verify_print_result(printer, before_jobs, doc_hint)
+        if not ok:
+            return False, vmsg
+        return True, "已打印完成（PPT）"
     except Exception as e:
         return False, f"PPT 打印失败：{e}"
     finally:
@@ -563,7 +751,13 @@ def print_file(path, ext, printer, settings):
     - PDF：系统关联程序「右击打印」（最快最稳）
     - Word/Excel/PPT：本机 Office COM 直接打印
     settings: {duplex, copies, color, pages}
+
+    打印前先做打印机体检（脱机 / 暂停 / 虚拟打印机等直接判失败），
+    打印后各分支再查打印队列确认真的打出去了（见 verify_print_result）。
     """
+    prob = printer_problem(printer)
+    if prob:
+        return False, prob
     if ext == ".pdf":
         return print_pdf_native(path, printer, settings)
     if ext in OFFICE_EXT:

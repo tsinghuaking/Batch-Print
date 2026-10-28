@@ -32,7 +32,8 @@ Key features:
 - ⚫ **Monochrome by default**: newly added files print in black & white to avoid wasting color ink
 - 💾 **Remember the default printer**: click "Set as default" and it is auto-selected next time — no more dropdown hunting
 - 🔄 **One-click reprint of failures**: failed files are marked red; the "Reprint failed files" button retries just those — no need to start over
-- ✅ **Real-time status feedback**: each file turns green "Done" on success, or red "Failed" with details in the log
+- ✅ **Honest status feedback (V1.8)**: it no longer counts as success just because the job was submitted. The app checks the Windows print queue and only shows green "Done" when the job really printed. If the printer is disconnected, offline, paused, out of paper, jammed, or the job never reached the queue, the row turns red "Failed" with the reason (hover the status cell for the full message)
+- 🛑 **Pre-print check + virtual printer block**: offline / paused / no paper / jam / no toner are rejected up front; save-to-file targets like Microsoft Print to PDF, WPS PDF and XPS Document Writer are rejected with a hint to pick a real printer
 - 🎨 **Modern UI**: Neve-inspired design, Apple system font stack, custom rounded overlay dropdowns (no layout shift, no native browser dropdowns), soft palette, with a header logo and "Batch Print 批量打印工具" title
 - 🔗 **Header shortcut button**: a single GitHub button on the top-right to open the project repository
 - 🪟 **No black window, opens in your browser**: built only on the Python standard library (no third-party web framework); the
@@ -43,7 +44,7 @@ Key features:
 ## Preview
 
 <div align="center">
-  <img src="docs/preview.png" alt="UI preview (V1.7)">
+  <img src="docs/preview.png" alt="UI preview (V1.8)">
 </div>
 
 ## Quick Start (regular users, recommended)
@@ -129,7 +130,24 @@ They are temporarily stored in `%USERPROFILE%/.batch_print/uploads/` and are not
 - The tool calls your local Office / system PDF reader directly (same as right-click print), so paper usually comes out fast; if nothing happens, make sure you selected a real printer and it is not "Paused / Offline";
 - Virtual printers (Microsoft Print to PDF / WPS PDF / Adobe PDF) pop a "Save As" dialog and don't suit silent batch printing.
 
+**6. It is a real printer, so why does it say "Failed"?**
+Since V1.8 the status reflects the real print queue instead of always reporting success. Common causes:
+- Printer is off, unplugged, or its network address changed (Windows reports it as offline);
+- Out of paper, paper jam, open cover, empty toner;
+- Old failed jobs are stuck in the queue - clear them in Windows "Printers & scanners -> Open print queue";
+- The PDF was intercepted by its associated app (e.g. Edge) which popped a print dialog instead of printing:
+  try another PDF reader, or print once manually to confirm it works.
+Hover the status cell for the full reason; details are also in the log.
+
 ## Changelog
+
+### V1.8 (2026-10-28)
+- **No more fake success**: previously any submitted job showed "Done" even with no printer attached.
+  Now the app checks the Windows print queue and only reports "Done" when the job really entered the queue and finished
+- **Pre-print check**: offline / paused / no paper / jam / open cover / no toner are rejected immediately
+- **Virtual printer block**: save-to-file targets (Microsoft Print to PDF, WPS PDF, XPS Document Writer) are rejected with a hint
+- **Batch stop-loss**: after 2 consecutive failures the remaining files are skipped and logged as such
+- **Hover for reason**: the status cell shows the full failure reason on hover
 
 ### V1.7 (2026-10-28)
 - **Real PPT support**: `.ppt/.pptx` were documented but rejected on upload; now accepted and printed by local PowerPoint
