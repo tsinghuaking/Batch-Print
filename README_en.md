@@ -25,7 +25,7 @@ Everything runs on your own machine — no file is ever uploaded to any network.
 
 Key features:
 
-- 📄 **PDF / Word(.doc/.docx) / Excel(.xls/.xlsx) / PPT(.ppt/.pptx)** (PPT upload and printing fully work since V1.7) — Word/Excel/PPT print via local Microsoft Office directly, and PDF via the system reader's "right-click print". No intermediate conversion, fastest and most reliable.
+- 📄 **PDF / Word(.doc/.docx) / Excel(.xls/.xlsx) / PPT(.ppt/.pptx)** (PPT upload and printing fully work since V1.7) — Word/Excel/PPT print via local Microsoft Office directly, and PDF via local WPS in silent mode (V1.9, independent of the system default reader). No intermediate conversion.
 - 🖨️ **Per-file settings**: duplex (long-edge / short-edge flip), copies, color / monochrome, page range (e.g. `1-3`, `1,3,5-7`)
 - 📋 **Tabular task list**: auto-sorted by filename; columns for index, file, duplex, copies, color, page range, **real-time page count**, status
 - 🎯 **Global + per-file control**: set defaults in the "Global settings" row and click "Apply to all", or tweak any single row
@@ -37,14 +37,14 @@ Key features:
 - 🎨 **Modern UI**: Neve-inspired design, Apple system font stack, custom rounded overlay dropdowns (no layout shift, no native browser dropdowns), soft palette, with a header logo and "Batch Print 批量打印工具" title
 - 🔗 **Header shortcut button**: a single GitHub button on the top-right to open the project repository
 - 🪟 **No black window, opens in your browser**: built only on the Python standard library (no third-party web framework); the
-  printing is done by your local Office and the system PDF reader, so no extra engine is bundled — double-click opens the page in your system's default browser (no console window),
+  printing is done by your local Office and WPS, so no extra engine is bundled — double-click opens the page in your system's default browser (no console window),
   and the "Exit program" button on the top-right stops the service.
-- ⚡ **Faster prints**: calls your local Office and system PDF reader directly (same as right-click print) — no intermediate conversion, no engine cold start, fast and reliable paper output
+- ⚡ **Faster prints**: calls your local Office and WPS directly — no intermediate conversion; WPS reuses its instance, so batch jobs get faster
 
 ## Preview
 
 <div align="center">
-  <img src="docs/preview.png" alt="UI preview (V1.8)">
+  <img src="docs/preview.png" alt="UI preview (V1.9)">
 </div>
 
 ## Quick Start (regular users, recommended)
@@ -68,7 +68,7 @@ Key features:
    - Per file: edit each row in the table;
    - Page syntax: `1-3` (pages 1–3), `1,3,5-7` (specific pages), empty = all pages.
 4. **Print**: click "Print":
-   - Each file is submitted straight to your local Office / system PDF reader (same as right-click print), with no intermediate conversion;
+   - PDFs go to local WPS for silent printing, Word/Excel/PPT to local Office; no intermediate conversion;
    - Each row updates live to "Done / Failed";
    - If any fail, click "Reprint failed files" to retry only those.
 5. **Inspect the log**: the log panel below the page shows the printer, settings and return for each submission; failures include the error detail for easier debugging.
@@ -99,7 +99,7 @@ into the exe, so distribution needs only that one file (self-contained, double-c
 ```
 批量打印工具/
 ├── app.py              # web service (Python stdlib http.server, no third-party deps)
-├── print_core.py       # print core: enumerate printers / local Office direct print / system PDF reader
+├── print_core.py       # print core: enumerate printers / local Office direct print / WPS PDF print
 ├── templates/
 │   └── index.html      # web UI
 ├── requirements.txt
@@ -127,7 +127,7 @@ They are temporarily stored in `%USERPROFILE%/.batch_print/uploads/` and are not
 
 **5. The printer does nothing / is super slow?**
 - The first time you switch printers, the app enumerates all system printers (~1–2s) and caches the list for 120 seconds;
-- The tool calls your local Office / system PDF reader directly (same as right-click print), so paper usually comes out fast; if nothing happens, make sure you selected a real printer and it is not "Paused / Offline";
+- The tool calls your local Office / WPS directly, so paper usually comes out fast; if nothing happens, make sure you selected a real printer and it is not "Paused / Offline". If WPS is hung, end all WPS processes in Task Manager and retry;
 - Virtual printers (Microsoft Print to PDF / WPS PDF / Adobe PDF) pop a "Save As" dialog and don't suit silent batch printing.
 
 **6. It is a real printer, so why does it say "Failed"?**
@@ -140,6 +140,11 @@ Since V1.8 the status reflects the real print queue instead of always reporting 
 Hover the status cell for the full reason; details are also in the log.
 
 ## Changelog
+
+### V1.9 (2026-11-17)
+- **PDF now prints via WPS**: no longer relies on the system-associated PDF reader's "print" verb. Printing works even if the default PDF app is something like KillerPDF with no print capability
+- **Fixed completion detection**: job-ending states ("deleted" / "printed") are no longer mistaken for failures, so a normal print reliably shows green "Done"
+- **WPS instance reuse**: the app no longer force-kills WPS after printing (doing so broke its single-instance IPC and blocked later jobs), making batch printing faster and steadier
 
 ### V1.8 (2026-10-28)
 - **No more fake success**: previously any submitted job showed "Done" even with no printer attached.
@@ -168,7 +173,7 @@ Hover the status cell for the full reason; details are also in the log.
 
 ## Third-party licenses
 
-- This tool uses only the Python standard library (no Flask or other web framework) for the web service; printing is done by the local Office and the system PDF reader, with no bundled third-party print engine.
+- This tool uses only the Python standard library (no Flask or other web framework) for the web service; printing is done by the local Office and WPS, with no bundled third-party print engine.
 - Released under the [MIT License](LICENSE).
 
 ## License

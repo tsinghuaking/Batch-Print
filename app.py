@@ -259,7 +259,7 @@ class Handler(BaseHTTPRequestHandler):
                 "color": (data or {}).get("color", "color"),
                 "pages": (data or {}).get("pages", ""),
             }
-            # PDF 走系统关联程序「右击打印」；Word/Excel/PPT 走本机 Office 直打；均不经中间转换
+            # PDF 显式调用 WPS 静默打印（V1.9，不依赖文件关联）；Word/Excel/PPT 走本机 Office 直打
             ok, msg = print_core.print_file(path, ext, printer, settings)
             desc = self._settings_desc(settings)
             return self._send_json(

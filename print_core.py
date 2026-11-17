@@ -1,8 +1,8 @@
 """
 批量打印核心模块（本机专用，不涉及任何网络上传）
 - 枚举系统打印机
-- PDF：用系统关联的 PDF 阅读器做「右击 -> 打印」（os.startfile print），最快最稳；
-      指定页码时用 pypdf 抽取成临时 PDF 再打印，从而精确打第几页
+- PDF：显式调用 WPS 的 wps.exe /pdf /n /p 静默打印（V1.9），不依赖文件关联，
+      KillerPDF 等阅读器抢走默认关联也不影响；指定页码时用 pypdf 抽取成临时 PDF 再打印
 - Word/Excel/PPT：用本机 Microsoft Office COM 直接 PrintOut，不经任何中间转换
 - 双面/彩色/份数/页码 通过临时修改打印机默认 DEVMODE 或 Office PrintOut 参数实现（打印后还原）
 - 不依赖 SumatraPDF / LibreOffice（V1.7 已彻底移除相关代码）
@@ -14,6 +14,7 @@ import subprocess
 import threading
 import uuid
 import sys
+import time
 import tempfile
 
 if os.name == "nt":
@@ -221,8 +222,7 @@ def get_page_count(src_path, ext):
 
 # ============================================================================
 # 本地原生打印（不经任何中间转换）
-# - PDF：用系统关联的 PDF 阅读器做「右击 -> 打印」（os.startfile 的 print 动作），
-#        最快最稳，就像在资源管理器里右键打印一样。
+# - PDF：显式调用 WPS 的 wps.exe /pdf /n /p 静默打印（不依赖文件关联，V1.9）。
 # - Word/Excel/PPT：用本机 Office COM 直接 PrintOut，不经过任何中间转换。
 # 双面 / 彩色 / 份数 通过临时修改打印机默认 DEVMODE 实现（打印后还原）。
 # ============================================================================
@@ -348,13 +348,14 @@ PRINTER_BAD_STATUS = {
 # 作业状态位（JOB_INFO_2.Status）中「这次打印失败了」的情况
 JOB_BAD_STATUS = {
     0x00000002: "作业出错",
-    0x00000004: "作业被删除",
     0x00000020: "打印机关机 / 脱机",
     0x00000040: "缺纸",
-    0x00000100: "作业被删除",
     0x00000200: "设备队列阻塞",
     0x00000400: "需要人工干预",
 }
+# 这些状态表示作业正在收尾（被删除 / 已完成），不是失败：继续轮询等它从队列消失。
+# 旧版把 0x4/0x100 当失败，正常打完时若驱动短暂置位会被误判「失败」。
+JOB_ENDING_STATUS = 0x00000004 | 0x00000100 | 0x00000008  # DELETED | DELETING | PRINTED
 
 # 虚拟打印机：一定会弹「另存为」窗口，不可能静默出纸
 # 只认明确的特征词；像「Canon MF4800 UFRII LT XPS」这种只是用了 XPS 驱动的
@@ -436,7 +437,6 @@ def verify_print_result(printer, before, doc_hint="",
     except Exception:
         return True, "已发送打印任务（未安装 pywin32，无法核验是否真的打出）"
 
-    import time
     started = time.time()
     new = {}
     while time.time() - started < wait_appear:
@@ -448,8 +448,8 @@ def verify_print_result(printer, before, doc_hint="",
 
     if not new:
         return False, (f"{wait_appear} 秒内没在「{printer}」的队列里看到这个打印任务，"
-                       "说明并没有真正打出去。常见原因：打印机没连 / 关机，"
-                       "或 PDF 被关联程序拦下（弹出了打印对话框等你点）")
+                       "说明并没有真正打出去。常见原因：打印机没连 / 关机 / 缺纸；"
+                       "或 WPS 进程卡死——可在任务管理器结束所有 WPS 进程后重试")
 
     # 优先跟踪文档名能对上的那个作业，否则取最新一个
     jid = None
@@ -472,6 +472,10 @@ def verify_print_result(printer, before, doc_hint="",
             if st & bit:
                 extra = j.get("pStatus") or ""
                 return False, f"打印失败：{txt}（系统提示：{extra}）"
+        # 作业处于「已打印 / 正在删除 / 已删除」= 正常收尾，等它从队列消失即成功
+        if st & JOB_ENDING_STATUS:
+            time.sleep(poll)
+            continue
         pages = j.get("PagesPrinted", 0) or 0
         if pages != last_pages:
             last_pages, last_change = pages, time.time()
@@ -485,12 +489,94 @@ def verify_print_result(printer, before, doc_hint="",
     return False, f"打印任务超过 {int(wait_done)} 秒仍未结束，请检查打印机状态"
 
 
-def print_pdf_native(path, printer, settings):
-    """打印 PDF：用系统关联的 PDF 阅读器做「右击 -> 打印」（os.startfile 的 print 动作）。
+# ============================================================================
+# WPS PDF 打印引擎（V1.9）
+# 旧版用 os.startfile(path, "print")，依赖「系统关联的 PDF 阅读器」提供 print
+# 动词。用户把 PDF 默认程序换成 KillerPDF 等不提供该动词的阅读器后，直接失效。
+# 现在显式调用 WPS 的 wps.exe /pdf /n /p，绕过文件关联，谁来当默认程序都不影响。
+# ============================================================================
 
-    最快最稳，就像在资源管理器里右键打印一样；打印完阅读器是否保持打开由系统/用户决定，
-    本程序不强行关闭它（避免误杀用户已打开的其它 PDF 文档）。
-    页码范围：用 pypdf 把指定页抽成临时 PDF 再交给阅读器，从而精确打第几页。
+_WPS_CACHE = {}  # 缓存找到的 WPS 路径，避免每次打印都查注册表
+
+
+def _wps_exe_and_args():
+    """返回 (wps.exe 绝对路径, 打印参数模板含 %1)，找不到返回 (None, None)。
+    优先取注册表里 WPS PDF 的 print 命令（连参数一起拿），路径失效时按安装目录兜底。
+    """
+    if _WPS_CACHE.get("done"):
+        return _WPS_CACHE.get("exe"), _WPS_CACHE.get("args")
+    default_args = '/prometheus /pdf /n /p "%1"'
+    exe, args = None, default_args
+    try:
+        import winreg
+        # 1) 从 WPS PDF 的 print 动词拿 exe + 参数（版本/参数跟着 WPS 自己走）
+        for progid in ("KWPS.PDF.9", "KWPS.PDF"):
+            try:
+                k = winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, progid + r"\shell\print\command")
+                cmd = winreg.QueryValueEx(k, "")[0]
+                winreg.CloseKey(k)
+                m = re.match(r'\s*"([^"]+)"(.*)', cmd or "")
+                if not m:
+                    continue
+                cand = os.path.normpath(m.group(1))
+                if os.path.isfile(cand):
+                    exe = cand
+                    rest = (m.group(2) or "").strip()
+                    if "%1" in rest:
+                        args = rest
+                    break
+            except Exception:
+                pass
+        # 2) 注册表路径失效（WPS 升级残留）时，从 COM 的 Path 拿安装目录
+        if not exe:
+            try:
+                import win32com.client
+                app = win32com.client.Dispatch("kwps.Application")
+                p = getattr(app, "Path", "") or ""
+                try:
+                    app.Quit()
+                except Exception:
+                    pass
+                cand = os.path.join(p, "wps.exe") if p else ""
+                if cand and os.path.isfile(cand):
+                    exe = os.path.normpath(cand)
+            except Exception:
+                pass
+        # 3) 最后扫描常见安装目录
+        if not exe:
+            exe = _scan_wps_exe()
+    except Exception:
+        pass
+    _WPS_CACHE.update(done=True, exe=exe, args=args)
+    return exe, args
+
+
+def _scan_wps_exe():
+    """在常见位置扫描 wps.exe（覆盖装在用户主目录下的怪异路径）。"""
+    import glob
+    home = os.path.expanduser("~")
+    pats = [
+        os.path.join(home, "*", "office6", "wps.exe"),
+        os.path.join(home, "AppData", "Local", "Kingsoft", "WPS Office", "*", "office6", "wps.exe"),
+        r"C:\Program Files (x86)\Kingsoft\WPS Office\*\office6\wps.exe",
+        r"C:\Program Files\Kingsoft\WPS Office\*\office6\wps.exe",
+    ]
+    for pat in pats:
+        try:
+            for cand in glob.glob(pat):
+                if os.path.isfile(cand):
+                    return os.path.normpath(cand)
+        except Exception:
+            pass
+    return None
+
+
+def print_pdf_native(path, printer, settings):
+    """打印 PDF（V1.9）：显式调用 WPS 的 wps.exe /pdf /n /p 静默打印。
+
+    不再依赖系统关联的 PDF 阅读器是否提供 print 动词——那样换 KillerPDF 之类的
+    阅读器就会失效。WPS 打印到「默认打印机」，故下面会临时把默认打印机切到目标。
+    页码范围：用 pypdf 把指定页抽成临时 PDF 再交给 WPS，从而精确打第几页。
     """
     pages = (settings.get("pages") or "").strip()
     target = os.path.abspath(path)
@@ -518,8 +604,16 @@ def print_pdf_native(path, printer, settings):
         except Exception as e:
             return False, f"提取指定页失败：{e}"
 
+    # 显式定位 WPS：找不到就直接报清楚，不再退回不可靠的文件关联打印
+    wps_exe, wps_args = _wps_exe_and_args()
+    if not wps_exe:
+        return False, ("找不到 WPS 的 wps.exe，无法打印 PDF。"
+                       "请确认已安装 WPS Office；本机 PDF 默认程序（如 KillerPDF）"
+                       "不提供打印功能，本工具需要 WPS 来打印 PDF")
+
+    import shlex
+    import win32print
     try:
-        import win32print
         old_default = win32print.GetDefaultPrinter()
     except Exception:
         old_default = None
@@ -537,19 +631,22 @@ def print_pdf_native(path, printer, settings):
         before_jobs = snapshot_jobs(printer)
         doc_hint = os.path.splitext(os.path.basename(target))[0]
 
-        # 系统关联程序「右击打印」（os.startfile 的 print 动作）：最快最稳，
-        # 就像在资源管理器里右键打印一样。打印完阅读器是否保持打开由系统/用户决定，
-        # 本程序不强行关闭它（避免误杀用户已打开的其它 PDF 文档）。
-        os.startfile(target, "print")
+        # 显式调用 WPS 静默打印：wps.exe /prometheus /pdf /n /p "文件"
+        # /p = 打印到默认打印机（上面已临时切到目标打印机），/n = 不复用已有实例
+        cmd_args = shlex.split(wps_args)
+        cmd_args = [target if a == "%1" else a for a in cmd_args]
+        subprocess.Popen([wps_exe] + cmd_args, creationflags=NO_WINDOW)
 
         # 关键：不再「发出就算成功」，等打印队列给出真实结果
-        ok, vmsg = verify_print_result(printer, before_jobs, doc_hint)
+        # WPS 首次启动较慢，给 40 秒等待作业入队（实测冷启动约 15 秒）
+        ok, vmsg = verify_print_result(printer, before_jobs, doc_hint,
+                                       wait_appear=40, wait_done=180)
         if not ok:
             return False, vmsg
-        msg = "已打印完成（PDF）"
+        msg = "已打印完成（PDF · WPS）"
         if tmp:
             msg += f"  [已抽取第 {pages} 页]"
-        # 阅读器异步读取临时文件，60 秒后再尝试清理
+        # WPS 异步读取临时文件，60 秒后再尝试清理
         if tmp:
             try:
                 threading.Timer(60.0, lambda: _remove_if_exists(tmp)).start()
@@ -558,8 +655,10 @@ def print_pdf_native(path, printer, settings):
         return True, msg
     except Exception as e:
         _remove_if_exists(tmp)
-        return False, f"本地打印失败：{e}"
+        return False, f"WPS 打印 PDF 失败：{e}"
     finally:
+        # 不主动结束 WPS 进程：实测 WPS 用共享单例模型，强杀会破坏其 IPC，
+        # 导致后续打印任务不入队。让它自然复用实例（第二次打印反而更快）。
         if old_default:
             try:
                 win32print.SetDefaultPrinter(old_default)
@@ -748,7 +847,7 @@ def print_office_native(src, ext, printer, settings):
 
 def print_file(path, ext, printer, settings):
     """统一打印入口（不经任何中间转换）：
-    - PDF：系统关联程序「右击打印」（最快最稳）
+    - PDF：显式调用 WPS 静默打印（不依赖文件关联，V1.9）
     - Word/Excel/PPT：本机 Office COM 直接打印
     settings: {duplex, copies, color, pages}
 

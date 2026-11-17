@@ -8,7 +8,7 @@
 产物：dist/BatchPrint.exe
 - 运行时仅用 Python 标准库（不含 Flask）；pypdf 只用于统计页数。
 - templates/ 与 assets/ 全部内嵌进单个 exe，双击即用、自包含。
-- 打印改用本机 Office 直打 + 系统 PDF 阅读器（右键打印），不再依赖 SumatraPDF / LibreOffice，故不打包任何外部引擎。
+- 打印改用本机 Office 直打 + WPS 静默打印 PDF（V1.9），不再依赖 SumatraPDF / LibreOffice，故不打包任何外部引擎。
 
 说明：
 - 无控制台黑窗口（--windowed）。运行日志写入 exe 同目录「运行日志.txt」，
